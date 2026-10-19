@@ -1,0 +1,17 @@
+{
+  "name": "pencatat-keuangan",
+  "version": "0.1.0",
+  "description": "Bot Discord pencatat keuangan AI (Gemini) dengan penyimpanan Google Sheets",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5",
+    "googleapis": "^144.0.0"
+  }
+}
