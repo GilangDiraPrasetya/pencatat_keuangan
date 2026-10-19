@@ -97,6 +97,24 @@ Checklist:
 
 ---
 
+## ⭐ C7 — Kelompok kategori (pendapatan/pengeluaran/tabungan) + `!kategori` dari Discord  ← *Kita di sini*
+Rancangan:
+- Tab baru `Categories` (kolom `name`, `group`) — dibuat otomatis + seed default; sumber daftar kategori parser & `!kategori`.
+- Kolom baru `group` (INCOME/EXPENSE/SAVINGS) di tab `Transactions` (kolom L, tambahan di akhir agar data lama tetap valid).
+- Semantik: `type` = arus kas (masuk/keluar); `group` = kelompok kategori. Menabung = type EXPENSE + group SAVINGS. Margin = pendapatan − pengeluaran (tabungan dihitung terpisah).
+Checklist:
+- [x] Tab `Categories` + seed default otomatis (terverifikasi via script: 16 kategori)
+- [x] Kolom `group` di `Transactions` (coverage: sheets.js append/mapRow/header perpanjangan)
+- [x] `!kategori` (list), `tambah`, `hapus`, `pindah`, `reset`
+- [x] Parser gemini memilih kategori dari daftar dinamis + grup (tes 7/7 kasus)
+- [x] `!rekap` menampilkan Pendapatan / Pengeluaran / Tabungan + margin
+- [x] Q&A menyertakan total 3 kelompok
+DoD (uji di Discord — tinggal verifikasi kamu):
+- `!kategori` menampilkan 3 grup; `menabung 50rb` → grup Tabungan; `gajian 3 juta` → Pendapatan; `bayar parkir 2 ribu` → Pengeluaran; `!rekap` menampilkan 3 jalur + margin benar; `!kategori tambah tabungan Dana Kuliah` lalu `menabung 20rb` → masuk Dana Kuliah.
+Status: [x] code selesai —nunggu verifikasi di Discord
+
+---
+
 ## 🏁 PROYEK MVP SELESAI
 Semua checkpoint C0–C6 lolos pada 2026-10-19.
 

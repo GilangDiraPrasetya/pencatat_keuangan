@@ -1,6 +1,8 @@
 'use strict';
 // Semua akses Google Sheets memakai Service Account (gratis).
-// Tab yang dipakai: "Transactions" (dibuat otomatis + header bila belum ada).
+// Tab yang dipakai:
+//   - "Transactions": data transaksi (dibuat otomatis + header bila belum ada)
+//   - "Categories": daftar kategori dinamis (name, group) — dikelola via !kategori
 
 const fs = require('fs');
 const { google } = require('googleapis');
@@ -8,12 +10,39 @@ const { google } = require('googleapis');
 const SHEET_NAME = 'Transactions';
 const HEADER = [
   'timestamp', 'date', 'user_id', 'username', 'type', 'category',
-  'description', 'amount', 'currency', 'msg_id', 'status',
+  'description', 'amount', 'currency', 'msg_id', 'status', 'group',
 ];
+
+const CAT_SHEET_NAME = 'Categories';
+const CAT_HEADER = ['name', 'group'];
+
+// Kelompok kategori: pendapatan (INCOME) / pengeluaran (EXPENSE) / tabungan (SAVINGS)
+const GROUP_KEYS = ['INCOME', 'EXPENSE', 'SAVINGS'];
+const GROUP_LABEL = { INCOME: 'Pendapatan', EXPENSE: 'Pengeluaran', SAVINGS: 'Tabungan' };
+
+const DEFAULT_CATEGORIES = [
+  ['Gaji', 'INCOME'], ['Bonus', 'INCOME'], ['Penjualan', 'INCOME'], ['Hadiah', 'INCOME'],
+  ['Lainnya', 'INCOME'],
+  ['Makanan', 'EXPENSE'], ['Transportasi', 'EXPENSE'], ['Belanja', 'EXPENSE'],
+  ['Tagihan', 'EXPENSE'], ['Hiburan', 'EXPENSE'], ['Kesehatan', 'EXPENSE'],
+  ['Pendidikan', 'EXPENSE'], ['Lainnya', 'EXPENSE'],
+  ['Tabungan', 'SAVINGS'], ['Investasi', 'SAVINGS'], ['Dana Darurat', 'SAVINGS'],
+];
+
+// Terjemahkan sebutan grup dari user ke key kanonik
+function parseGroup(input) {
+  const s = String(input || '').trim().toLowerCase();
+  const map = {
+    pendapatan: 'INCOME', income: 'INCOME', pemasukan: 'INCOME', gaji: 'INCOME',
+    pengeluaran: 'EXPENSE', expense: 'EXPENSE', biaya: 'EXPENSE', belanja: 'EXPENSE',
+    tabungan: 'SAVINGS', savings: 'SAVINGS', saving: 'SAVINGS', investasi: 'SAVINGS',
+  };
+  return map[s] || null;
+}
 
 // ---------- Konfigurasi ----------
 // Dua mode: (1) file JSON key lokal via SERVICE_ACCOUNT_KEY_FILE (paling aman),
-//           (2) isi JSON service account utuh di env SERVICE_ACCOUNT_JSON (untuk deploy Render, file tak ter-commit)
+//           (2) isi JSON service account utuh di env SERVICE_ACCOUNT_JSON (untuk deploy, file tak ter-commit)
 let cachedConfig = false;
 function getConfig() {
   if (cachedConfig !== false) return cachedConfig;
@@ -54,7 +83,7 @@ function isConfigured() {
 async function getClient() {
   const cfg = getConfig();
   if (!cfg) {
-    throw new Error('Google Sheets belum dikonfigurasi (SPREADSHEET_ID / GOOGLE_SERVICE_ACCOUNT_EMAIL / SERVICE_ACCOUNT_KEY_FILE).');
+    throw new Error('Google Sheets belum dikonfigurasi (SPREADSHEET_ID / SERVICE_ACCOUNT).');
   }
   const auth = new google.auth.JWT({
     email: cfg.email,
@@ -99,7 +128,7 @@ function monthPrefix(offsetMonths = 0) {
   return `${p.year}-${p.month}`;
 }
 
-// ---------- Inisialisasi tab & header ----------
+// ---------- Inisialisasi tab Transactions ----------
 let sheetReady = false;
 
 async function writeHeader({ sheets, cfg }) {
@@ -127,11 +156,65 @@ async function ensureSheet() {
   } else {
     const head = await sheets.spreadsheets.values.get({
       spreadsheetId: cfg.spreadsheetId,
-      range: `${SHEET_NAME}!A1:K1`,
+      range: `${SHEET_NAME}!A1:L1`,
     });
-    if (!(head.data.values || []).length) await writeHeader({ sheets, cfg });
+    const values = head.data.values || [];
+    if (!values.length) {
+      await writeHeader({ sheets, cfg });
+    } else if (values[0].length < HEADER.length) {
+      // Header lama (11 kolom) → perbarui agar kolom "group" ikut ada (data lama tetap valid)
+      await writeHeader({ sheets, cfg });
+    }
   }
   sheetReady = true;
+}
+
+// ---------- Inisialisasi tab Categories ----------
+let catReady = false;
+
+async function writeCatHeader({ sheets, cfg }) {
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A1`,
+    valueInputOption: 'RAW',
+    resource: { values: [CAT_HEADER] },
+  });
+}
+
+async function ensureCatSheet() {
+  if (catReady) return;
+  const { sheets, cfg } = await getClient();
+
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: cfg.spreadsheetId });
+  const exists = (meta.data.sheets || []).some((s) => s.properties?.title === CAT_SHEET_NAME);
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: cfg.spreadsheetId,
+      resource: { requests: [{ addSheet: { properties: { title: CAT_SHEET_NAME } } }] },
+    });
+    await writeCatHeader({ sheets, cfg });
+  } else {
+    const head = await sheets.spreadsheets.values.get({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${CAT_SHEET_NAME}!A1:B1`,
+    });
+    if (!(head.data.values || []).length) await writeCatHeader({ sheets, cfg });
+  }
+
+  // Seed default bila masih kosong
+  const body = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2:B`,
+  });
+  if (!(body.data.values || []).length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${CAT_SHEET_NAME}!A2`,
+      valueInputOption: 'RAW',
+      resource: { values: DEFAULT_CATEGORIES },
+    });
+  }
+  catReady = true;
 }
 
 // ---------- Mapping baris ----------
@@ -150,14 +233,18 @@ function mapRow(values, index) {
     currency: v[8] || 'IDR',
     msgId: v[9] || '',
     status: String(v[10] || 'OK').toUpperCase(),
+    group: String(v[11] || '').toUpperCase(), // kosong utk data lama → derive saat agregasi
   };
 }
 
-// ---------- Operasi data ----------
+// ---------- Operasi transaksi ----------
 async function appendTransaction({ user, txn, msgId }) {
   await ensureSheet();
   const { sheets, cfg } = await getClient();
   const type = txn.transaction_type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+  const group = GROUP_KEYS.includes(String(txn.group || '').toUpperCase())
+    ? String(txn.group).toUpperCase()
+    : (type === 'INCOME' ? 'INCOME' : 'EXPENSE');
   const now = new Date();
   const values = [[
     localTimestamp(now),
@@ -171,6 +258,7 @@ async function appendTransaction({ user, txn, msgId }) {
     'IDR',
     msgId || '',
     'OK',
+    group,
   ]];
 
   const res = await sheets.spreadsheets.values.append({
@@ -181,7 +269,7 @@ async function appendTransaction({ user, txn, msgId }) {
     resource: { values },
   });
 
-  // Ambil nomor baris sebagai ID transaksi (mis. "Transactions!A42:K42" → 42)
+  // Ambil nomor baris sebagai ID transaksi (mis. "Transactions!A42:L42" → 42)
   const updatedRange = res.data.updates?.updatedRange || '';
   const m = updatedRange.match(/(\d+)$/);
   return { rowIndex: m ? Number(m[1]) : null };
@@ -193,7 +281,7 @@ async function getAllForUser(userId) {
   const { sheets, cfg } = await getClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: cfg.spreadsheetId,
-    range: `${SHEET_NAME}!A2:K`,
+    range: `${SHEET_NAME}!A2:L`,
   });
   return (res.data.values || [])
     .map(mapRow)
@@ -206,7 +294,7 @@ async function deleteTransaction(userId, rowId) {
   const { sheets, cfg } = await getClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: cfg.spreadsheetId,
-    range: `${SHEET_NAME}!A${rowId}:K${rowId}`,
+    range: `${SHEET_NAME}!A${rowId}:L${rowId}`,
   });
   const rows = res.data.values || [];
   if (!rows.length) return { ok: false, reason: 'not_found' };
@@ -224,23 +312,158 @@ async function deleteTransaction(userId, rowId) {
   return { ok: true, row };
 }
 
+// ---------- Kategori dinamis ----------
+let catCache = null;
+
+function invalidateCats() {
+  catCache = null;
+}
+
+// Daftar kategori terkini dari tab Categories (cache 60 detik)
+async function getCategories() {
+  await ensureCatSheet();
+  if (catCache && Date.now() - catCache.t < 60000) return catCache.list;
+  const { sheets, cfg } = await getClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2:B`,
+  });
+  catCache = {
+    t: Date.now(),
+    list: (res.data.values || [])
+      .map((v) => ({ name: String(v[0] || '').trim(), group: parseGroup(v[1]) || 'EXPENSE' }))
+      .filter((c) => c.name),
+  };
+  return catCache.list;
+}
+
+async function addCategory(name, groupRaw) {
+  const group = parseGroup(groupRaw);
+  if (!group) throw new Error('Grup tidak dikenal. Pakai: pendapatan | pengeluaran | tabungan.');
+  const clean = String(name || '').trim().slice(0, 40);
+  if (!clean) throw new Error('Nama kategori tidak boleh kosong.');
+  await ensureCatSheet();
+  const { sheets, cfg } = await getClient();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A1`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    resource: { values: [[clean, group]] },
+  });
+  invalidateCats();
+  return { name: clean, group };
+}
+
+async function removeCategory(name) {
+  await ensureCatSheet();
+  const { sheets, cfg } = await getClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2:B`,
+  });
+  const rows = (res.data.values || []).map((v) => ({ name: String(v[0] || '').trim(), group: String(v[1] || '') }));
+  const idx = rows.findIndex((r) => r.name.toLowerCase() === String(name || '').trim().toLowerCase());
+  if (idx < 0) return null;
+
+  const keep = rows.filter((_, i) => i !== idx).map((r) => [r.name, r.group]);
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2:B`,
+  });
+  if (keep.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${CAT_SHEET_NAME}!A2`,
+      valueInputOption: 'RAW',
+      resource: { values: keep },
+    });
+  }
+  invalidateCats();
+  return { name: rows[idx].name, group: parseGroup(rows[idx].group) };
+}
+
+async function moveCategory(name, groupRaw) {
+  const group = parseGroup(groupRaw);
+  if (!group) throw new Error('Grup tidak dikenal. Pakai: pendapatan | pengeluaran | tabungan.');
+  await ensureCatSheet();
+  const { sheets, cfg } = await getClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2:B`,
+  });
+  const rows = (res.data.values || []);
+  const idx = rows.findIndex((v) => String(v[0] || '').trim().toLowerCase() === String(name || '').trim().toLowerCase());
+  if (idx < 0) return null;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!B${idx + 2}`,
+    valueInputOption: 'RAW',
+    resource: { values: [[group]] },
+  });
+  invalidateCats();
+  return { name: String(rows[idx][0] || '').trim(), group };
+}
+
+async function resetCategories() {
+  await ensureCatSheet();
+  const { sheets, cfg } = await getClient();
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2:B`,
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${CAT_SHEET_NAME}!A2`,
+    valueInputOption: 'RAW',
+    resource: { values: DEFAULT_CATEGORIES },
+  });
+  invalidateCats();
+}
+
 // ---------- Agregasi (dihitung di kode, bukan AI — angka selalu akurat) ----------
+// type = arus kas (INCOME masuk / EXPENSE keluar), group = kelompok kategori.
+// Tabungan: uang dipindah ke / ditarik dari tabungan — dihitung bersih (setor − tarik),
+// TIDAK masuk pengeluaran → margin tetap = pendapatan − pengeluaran.
 function summarize(rows) {
   let income = 0;
   let expense = 0;
-  const byCat = { expense: {}, income: {} };
+  let savingsIn = 0;
+  let savingsOut = 0;
+  const byCat = { income: {}, expense: {}, savings: {} };
+
   for (const r of rows) {
+    const cat = r.category || 'Lainnya';
+    const isSavings = GROUP_KEYS.includes(String(r.group || '').toUpperCase())
+      ? String(r.group).toUpperCase() === 'SAVINGS'
+      : false; // data lama tanpa group: masuk pendapatan/pengeluaran saja
     if (r.type === 'INCOME') {
-      income += r.amount;
-      const c = r.category || 'Gaji';
-      byCat.income[c] = (byCat.income[c] || 0) + r.amount;
+      if (isSavings) {
+        savingsIn += r.amount;
+        byCat.savings[cat] = (byCat.savings[cat] || 0) - r.amount;
+      } else {
+        income += r.amount;
+        byCat.income[cat] = (byCat.income[cat] || 0) + r.amount;
+      }
     } else if (r.type === 'EXPENSE') {
-      expense += r.amount;
-      const c = r.category || 'Lainnya';
-      byCat.expense[c] = (byCat.expense[c] || 0) + r.amount;
+      if (isSavings) {
+        savingsOut += r.amount;
+        byCat.savings[cat] = (byCat.savings[cat] || 0) + r.amount;
+      } else {
+        expense += r.amount;
+        byCat.expense[cat] = (byCat.expense[cat] || 0) + r.amount;
+      }
     }
   }
-  return { count: rows.length, income, expense, net: income - expense, byCat };
+
+  return {
+    count: rows.length,
+    income,
+    expense,
+    savingsNet: savingsOut - savingsIn,
+    net: income - expense,
+    byCat,
+  };
 }
 
 module.exports = {
@@ -251,4 +474,14 @@ module.exports = {
   summarize,
   localDateStr,
   monthPrefix,
+  // kategori
+  getCategories,
+  addCategory,
+  removeCategory,
+  moveCategory,
+  resetCategories,
+  DEFAULT_CATEGORIES,
+  GROUP_KEYS,
+  GROUP_LABEL,
+  parseGroup,
 };

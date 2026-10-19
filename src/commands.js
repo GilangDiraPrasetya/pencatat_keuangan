@@ -1,5 +1,5 @@
 'use strict';
-// Perintah gratis-kuota-AI: !help, !rekap, !hapus.
+// Perintah gratis-kuota-AI: !help, !rekap, !hapus, !kategori.
 
 const { EmbedBuilder } = require('discord.js');
 const sheets = require('./sheets');
@@ -17,7 +17,7 @@ const HELP_TEXT = [
   '🤖 **Cara pakai bot pencatat keuangan**',
   '',
   '📝 **Catat otomatis** — tulis gaya biasa di channel keuangan (atau mention bot):',
-  '   "bayar parkir 2 ribu" • "makan siang 15k" • "gajian 3 juta"',
+  '   "bayar parkir 2 ribu" • "makan siang 15k" • "gajian 3 juta" • "menabung 100rb"',
   '',
   '❓ **Tanya data** — tanya apa saja soal keuanganmu:',
   '   "berapa pengeluaran bulan ini" • "berapa margin" • "apa saja yang saya beli tanggal 3"',
@@ -26,6 +26,9 @@ const HELP_TEXT = [
   '   `!rekap` — rekap bulan ini',
   '   `!rekap hari` / `!rekap 8` / `!rekap lalu` / `!rekap all` — variasi rentang',
   '   `!hapus <id>` — batalkan transaksi (ID ada di footer reply bot)',
+  '   `!kategori` — lihat daftar kategori (3 kelompok: Pendapatan/Pengeluaran/Tabungan)',
+  '   `!kategori tambah <grup> <nama>` — contoh: `!kategori tambah tabungan Dana Kuliah`',
+  '   `!kategori hapus <nama>` • `!kategori pindah <grup> <nama>` • `!kategori reset`',
   '   `!help` — menu bantuan ini',
   '',
   '🔒 Data tiap user terpisah; hanya kamu yang bisa melihat datamu.',
@@ -34,14 +37,15 @@ const HELP_TEXT = [
 const SETUP_SHEETS = [
   '⚠️ Google Sheets belum dikonfigurasi.',
   'Isi di `.env`: `SPREADSHEET_ID`, `GOOGLE_SERVICE_ACCOUNT_EMAIL`,',
-  'dan simpan file key JSON ke `SERVICE_ACCOUNT_KEY_FILE`.',
-  'Langkah lengkap ada di `TASKS.md` bagian C2.',
+  'dan simpan file key JSON ke `SERVICE_ACCOUNT_KEY_FILE` (atau env `SERVICE_ACCOUNT_JSON`).',
+  'Langkah lengkap ada di `README.md` bagian Setup.',
 ].join(' ');
 
 async function cmdHelp(message) {
   return message.reply(HELP_TEXT);
 }
 
+// ---------- !rekap ----------
 async function cmdRekap(message, args) {
   if (!sheets.isConfigured()) return message.reply(SETUP_SHEETS);
 
@@ -90,10 +94,11 @@ async function cmdRekap(message, args) {
     .setColor(0x5865f2)
     .setTitle(`📊 ${title}`)
     .addFields(
-      { name: '💰 Pemasukan', value: fmt(s.income), inline: true },
+      { name: '💰 Pendapatan', value: fmt(s.income), inline: true },
       { name: '🛒 Pengeluaran', value: fmt(s.expense), inline: true },
-      { name: '📈 Selisih (margin)', value: fmt(s.net), inline: true },
-      { name: 'Jumlah transaksi', value: String(s.count), inline: false },
+      { name: '🏦 Tabungan (setor bersih)', value: fmt(s.savingsNet), inline: true },
+      { name: '📈 Margin (pendapatan − pengeluaran)', value: fmt(s.net), inline: true },
+      { name: 'Jumlah transaksi', value: String(s.count), inline: true },
       { name: 'Top kategori pengeluaran', value: top || '—', inline: false }
     )
     .setFooter({ text: `User: ${message.author.username}` });
@@ -101,6 +106,7 @@ async function cmdRekap(message, args) {
   return message.reply({ embeds: [embed] });
 }
 
+// ---------- !hapus ----------
 async function cmdHapus(message, args) {
   if (!sheets.isConfigured()) return message.reply(SETUP_SHEETS);
 
@@ -111,8 +117,9 @@ async function cmdHapus(message, args) {
 
   const res = await sheets.deleteTransaction(message.author.id, id);
   if (res.ok) {
+    const label = sheets.GROUP_LABEL[res.row.group] || '';
     const desc = res.row.type === 'INCOME' ? 'pemasukan' : 'pengeluaran';
-    return message.reply(`✅ Transaksi #${id} dibatalkan (${desc}: ${res.row.description || '-'}).`);
+    return message.reply(`✅ Transaksi #${id} dibatalkan (${label ? label.toLowerCase() : desc}: ${res.row.description || '-'}).`);
   }
   const alasan = {
     not_found: 'Transaksi tidak ditemukan.',
@@ -120,6 +127,84 @@ async function cmdHapus(message, args) {
     deleted: 'Transaksi itu sudah dihapus sebelumnya.',
   };
   return message.reply(`❌ ${alasan[res.reason] || 'Gagal menghapus.'}`);
+}
+
+// ---------- !kategori ----------
+async function cmdKategoriList(message) {
+  const cats = await sheets.getCategories();
+  const fields = sheets.GROUP_KEYS.map((g) => {
+    const names = cats.filter((c) => c.group === g).map((c) => c.name);
+    return { name: `${sheets.GROUP_LABEL[g]} (${names.length})`, value: names.length ? names.join(', ') : '—', inline: false };
+  });
+  const embed = new EmbedBuilder()
+    .setColor(0x5865f2)
+    .setTitle('🏷️ Daftar Kategori (3 kelompok)')
+    .addFields(...fields)
+    .setFooter({ text: 'Kelola: !kategori tambah <grup> <nama> • hapus <nama> • pindah <grup> <nama> • reset' });
+  return message.reply({ embeds: [embed] });
+}
+
+async function cmdKategoriTambah(message, args) {
+  // format: tambah <grup> <nama>
+  const group = args[0];
+  const name = args.slice(1).join(' ');
+  if (!name) {
+    return message.reply('Format: `!kategori tambah <grup> <nama>` — grup: `pendapatan` / `pengeluaran` / `tabungan`.\nContoh: `!kategori tambah tabungan Dana Kuliah`');
+  }
+  const cat = await sheets.addCategory(name, group);
+  return message.reply(`✅ Kategori **${cat.name}** ditambahkan ke kelompok **${sheets.GROUP_LABEL[cat.group]}**.`);
+}
+
+async function cmdKategoriHapus(message, args) {
+  const name = args.join(' ');
+  if (!name) return message.reply('Format: `!kategori hapus <nama>`\nContoh: `!kategori hapus Dana Kuliah`');
+  const cat = await sheets.removeCategory(name);
+  if (!cat) return message.reply(`❌ Kategori **"${name}"** tidak ditemukan. Cek daftar dengan \`!kategori\`.`);
+  return message.reply(`🗑️ Kategori **${cat.name}** (${sheets.GROUP_LABEL[cat.group] || cat.group}) dihapus.`);
+}
+
+async function cmdKategoriPindah(message, args) {
+  // format: pindah <grup> <nama>
+  const group = args[0];
+  const name = args.slice(1).join(' ');
+  if (!name) {
+    return message.reply('Format: `!kategori pindah <grup> <nama>` — contoh: `!kategori pindah tabungan Investasi`');
+  }
+  const cat = await sheets.moveCategory(name, group);
+  if (!cat) return message.reply(`❌ Kategori **"${name}"** tidak ditemukan.`);
+  return message.reply(`🔀 Kategori **${cat.name}** dipindahkan ke kelompok **${sheets.GROUP_LABEL[cat.group]}**.`);
+}
+
+async function cmdKategori(message, args) {
+  if (!sheets.isConfigured()) return message.reply(SETUP_SHEETS);
+
+  const sub = (args[0] || '').toLowerCase();
+  const rest = args.slice(1);
+
+  try {
+    switch (sub) {
+      case '':
+      case 'list':
+      case 'lihat':
+        return await cmdKategoriList(message);
+      case 'tambah':
+      case 'add':
+        return await cmdKategoriTambah(message, rest);
+      case 'hapus':
+      case 'delete':
+        return await cmdKategoriHapus(message, rest);
+      case 'pindah':
+      case 'move':
+        return await cmdKategoriPindah(message, rest);
+      case 'reset':
+        await sheets.resetCategories();
+        return message.reply('♻️ Daftar kategori dikembalikan ke default. Cek: `!kategori`');
+      default:
+        return message.reply('Sub-perintah `!kategori`:\n• `!kategori` — lihat daftar\n• `!kategori tambah <grup> <nama>`\n• `!kategori hapus <nama>`\n• `!kategori pindah <grup> <nama>`\n• `!kategori reset`');
+    }
+  } catch (err) {
+    return message.reply(`❌ ${err.message.slice(0, 200)}`);
+  }
 }
 
 async function handleCommand(message) {
@@ -135,6 +220,8 @@ async function handleCommand(message) {
       return cmdRekap(message, args);
     case '!hapus':
       return cmdHapus(message, args);
+    case '!kategori':
+      return cmdKategori(message, args);
     default:
       return message.reply(`Perintah \`${cmd}\` tidak dikenal 🤔 Ketik \`!help\` untuk daftar perintah.`);
   }

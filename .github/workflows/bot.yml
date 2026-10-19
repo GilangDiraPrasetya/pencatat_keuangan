@@ -6,6 +6,8 @@ name: pencatat-keuangan-bot
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main] # deploy otomatis tiap push
   schedule:
     - cron: '0 */6 * * *' # UTC 0/6/12/18 = 07/13/19/01 WIB
 
