@@ -198,6 +198,63 @@ Tab `Categories` (dikelola lewat `!kategori`):
 
 ---
 
+## 7b) Alur F — Saldo Awal & Posisi Terkini (C9 · *direncanakan*)
+
+> Masalah yang diselesaikan: ketika mulai memakai bot, kondisi awal **tidak nol** —
+> misal sudah punya **tabungan Rp2.500.000** dan **sisa kas Rp1.500.000**.
+> Tanpa baseline, semua rekap hanya menghitung transaksi sejak mulai dipakai.
+
+```
+ KAMU MENGISI POSISI AWAL (1x saja, atau saat posisi berubah di dunia nyata)
+
+ !saldo awal kas 1.500.000 tabungan 2.500.000
+        │
+        ▼
+ ┌───────────────────────────────┐
+ │ TAB "Balances" di Sheets      │   ← 1 baris per user:
+ │ user_id | cash | savings      │      baseline = milik kamu sendiri
+ └───────────────┬───────────────┘
+                 ▼
+     SETIAP TRANSAKSI SETELAHNYA
+                 │
+                 ▼
+ ┌───────────────────────────────────────────────────────┐
+ │ POSISI TERKINI (dihitung kode, selalu akurat)          │
+ │                                                        │
+ │  kas sekarang      = kas awal + pendapatan             │
+ │                      − pengeluaran − setor tabungan    │
+ │                                                        │
+ │  tabungan sekarang = tabungan awal + setor bersih      │
+ └───────────────────────────────────────────────────────┘
+                 ▼
+ Tampilan: embed transaksi, !saldo, !rekap, dan jawaban AI
+ ("berapa saldo saya", "berapa sisa uangku") semuanya memakai
+ Posisi Terkini — bukan lagi hanya pergerakan angka sejak bot dipakai saja.
+```
+
+Perintah baru untuk kelola saldo awal:
+
+| Perintah | Efek |
+|---|---|
+| `!saldo` | lihat saldo awal + **posisi terkini** (kas & tabungan) |
+| `!saldo awal kas 1500000` | set / perbarui kas awal |
+| `!saldo awal tabungan 2500000` | set / perbarui tabungan awal |
+| `!saldo awal kas 1500000 tabungan 2500000` | set keduanya sekali perintah |
+| `!saldo reset` | hapus baseline — hitungan kembali seperti sebelum C9 |
+
+Contoh hitung dengan baseline kamu (kas 1.5jt, tabungan 2.5jt):
+
+```
+!saldo                                →  kas 1.500.000 · tabungan 2.500.000
+menabung 100rb                        →  kas 1.400.000 · tabungan 2.600.000
+gajian 1jt                            →  kas 2.400.000 · tabungan 2.600.000
+bayar belanja 250rb                   →  kas 2.150.000 · tabungan 2.600.000
+```
+
+*Status: desain sudah ditetapkan di `TASKS.md` (C9); implementasi menyusul setelah konfirmasi.*
+
+---
+
 ## 8) Infrastruktur 24/7 (tanpa kartu kredit)
 
 ```

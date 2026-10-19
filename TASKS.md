@@ -115,23 +115,56 @@ Status: [x] selesai — LOLOS verifikasi user 2026-10-19
 
 ---
 
-## ⭐ C8 — Multi-transaksi dalam 1 chat  ← *Kita di sini*
+## ✅ C8 — Multi-transaksi dalam 1 chat
 Rancangan:
 - Parser Gemini mendukung `items: []` (max 6 per pesan) — kata penghubung "kemudian/lalu/… buat …/dan" dipecah jadi beberapa transaksi.
 - Semantik margin diperjelas: **margin = kas tersisa = pendapatan − pengeluaran (konsumsi) − tabungan (setor bersih)**.
   - "gaji 3.5jt kemudian ditabung 500rb" → pendapatan 3.5jt, tabungan +500rb, margin 3.0jt (pendapatan berkurang 500rb ✓)
   - "ambil tabungan 500rb buat beli sepatu" → tabungan −500rb, pengeluaran +500rb, margin 0 ✓
-- Reply embed ganda: 1 embed berisi daftar semua transaksi + ID masing-masing.
+- Reply embed multi: 1 embed berisi daftar semua transaksi + ID masing-masing.
 Checklist:
-- [ ] Parser: multi-item (contoh user jadi few-shot di prompt)
-- [ ] `summarize()`: margin = pend − peng − tabunganBersih (dengan kasus uji)
-- [ ] Embed multi: daftar + saldo bulan ini + footer IDs
-- [ ] `!rekap` & Q&A memakai istilah "kas tersisa"
+- [x] Parser: multi-item (contoh user jadi few-shot di prompt) — tes 6/6 kasus
+- [x] `summarize()`: margin = pend − peng − tabunganBersih (unit test ✓)
+- [x] Embed multi: daftar + saldo bulan ini + footer IDs
+- [x] `!rekap` & Q&A memakai istilah "kas tersisa"
 DoD (uji di Discord):
 - "gaji 3.500.000 kemudian ditabung 500.000" → 2 transaksi: Pendapatan 3.5jt + Tabungan 500rb; `!rekap` margin = 3.000.000.
 - "ambil tabungan 500.000 buat beli sepatu" → 2 transaksi: Tabungan −500rb (tarik) + Pengeluaran 500rb (sepatu); `!rekap` margin 0.
 - 1 chat biasa ("menabung 100rb") tetap bekerja.
-Status: [ ] code — menunggu verifikasi
+Status: [x] selesai — LOLOS verifikasi user 2026-10-19
+
+---
+
+## ⭐ C9 — Saldo Awal (baseline kas & tabungan) per-user  ← *Kita di sini* — DESAIN, menunggu Go
+Kebutuhan user:
+- Saat mulai memakai bot, posisi keuangan tidak nol. Contoh: sudah punya **tabungan Rp2.500.000** dan **sisa kas Rp1.500.000**.
+- Semua angka "kas tersisa" & "tabungan sekarang" harus dihitung dari baseline ini + transaksi yang tercatat.
+
+Rancangan:
+- Tab baru `Balances` (dibuat otomatis): kolom `user_id | username | cash | savings | updated_at` — **satu baris per user** (upsert saat update).
+- Perintah baru (tanpa AI):
+  - `!saldo` → tampilkan saldo awal + **posisi terkini**: kas sekarang & tabungan sekarang.
+  - `!saldo awal kas 1500000` → set/pdate kas awal
+  - `!saldo awal tabungan 2500000` → set/update tabungan awal
+  - `!saldo awal kas 1500000 tabungan 2500000` → set keduanya sekaligus
+  - `!saldo reset` → hapus baseline (hitungan kembali dari 0)
+- Rumus baru (kalau baseline ada; kalau tidak, perilaku lama):
+  - **kas sekarang** = kas awal + pendapatan − pengeluaran(konsumsi) − tabungan(setor bersih)
+  - **tabungan sekarang** = tabungan awal + setor bersih
+- Dampak tampilan:
+  - embed transaksi & `!rekap` menampilkan **posisi terkini** (kas & tabungan) saat baseline tersedia;
+  - Q&A ("berapa saldo saya", "berapa sisa uangku") memakai posisi terkini; facts AI ditambah baseline.
+Checklist:
+- [ ] Tab `Balances` otomatis + upsert per-user
+- [ ] `!saldo` (lihat), `!saldo awal ...` (set), `!saldo reset`
+- [ ] Agregasi memakai baseline (kas sekarang & tabungan sekarang)
+- [ ] Embed transaksi/`!rekap` menampilkan posisi terkini saat baseline ada
+- [ ] Q&A facts memuat baseline + posisi terkini
+- [ ] README + FLOW diperbarui
+DoD (uji di Discord):
+- `!saldo awal kas 1500000 tabungan 2500000` → tersimpan; `!saldo` → kas 1.5jt & tabungan 2.5jt;
+- `menabung 100rb` → kas 1.4jt, tabungan 2.6jt; `gajian 1jt` → kas 2.4jt; `!rekap` cocok; `berapa saldo saya` → jawaban pakai posisi terkini; user lain tidak terpengaruh.
+Status: [ ] menunggu implementasi
 
 ---
 
@@ -151,3 +184,4 @@ Semua checkpoint C0–C6 lolos pada 2026-10-19.
 | 2026-10-19 | C5 | Q&A AI akurat (angka = hitungan kode) + uji jujur data kosong ✅ |
 | 2026-10-19 | C6 | Deploy 24/7 via GitHub Actions (Render = minta kartu → dihapus); VS Code publish; Secrets 5 item ✅ **MVP SELESAI** |
 | 2026-10-19 | C7 | !kategori + 3 kelompok (pendapatan/pengeluaran/tabungan) + kolom group — LOLOS ✅ |
+| 2026-10-19 | C8 | Multi-transaksi 1 chat (items, max 6) + margin = kas tersisa — LOLOS ✅ |
