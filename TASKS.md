@@ -82,12 +82,12 @@ Checklist:
 
 ---
 
-## 🚀 C6 — Deploy gratis (Render) + README  ← *Kita di sini*
+## 🚀 C6 — Deploy gratis (GitHub Actions, tanpa kartu kredit) ← *Kita di sini*
 **Yang dilakukan:**
 1. `git init` + push ke GitHub (repo privat).
 2. Render.com → **New Web Service** → connect repo → Build: `npm install`, Start: `npm start` → isi semua env vars dari `.env`.
-3. UptimeRobot → monitor HTTP ke `https://<app>.onrender.com/ping` tiap 10 menit (anti-sleep).
-4. Tulis `README.md`: panduan setup lengkap (versi final dari langkah C1–C3).
+3. Jalankan workflow manual pertama kali di tab Actions → `Run workflow`.
+4. README.md sudah final (deploy section diganti GitHub Actions).
 
 Checklist:
 - [ ] Bot online 24/7 (tidak mati saat PC mati)

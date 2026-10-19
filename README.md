@@ -82,23 +82,24 @@ berapa margin                → pendapatan − pengeluaran
 
 ---
 
-## ☁️ Deploy gratis 24/7 (Render + UptimeRobot)
+## ☁️ Deploy gratis 24/7 (GitHub Actions — tanpa kartu kredit)
 
-1. Push repo ke GitHub (privat).
-2. https://render.com → **New Web Service** → connect repo GitHub-nya.
-3. Setting: Build `npm install`, Start `npm start`, instance **Free**.
-4. **Environment** → isi semua variabel Bootstrap `.env` **kecuali** `SERVICE_ACCOUNT_KEY_FILE` → ganti ke:
-   - `SERVICE_ACCOUNT_JSON` (isi: seluruh isi file `service-account.json`, GitHub tak pasang file). Bot imprimir fallback baca env ini bila file tak ketemu.
-   *(Kode `src/sheets.js` memeriksa: file `SERVICE_ACCOUNT_KEY_FILE` → `SERVICE_ACCOUNT_JSON` env → default `./service-account.json`.)*
-5. Setelah jadi, salin URL `https://<app>.onrender.com/`.
-6. https://uptimerobot.com (gratis) → **Add New Monitor** → HTTP(s) → URL `https://<app>.onrender.com/ping` → interval 10 menit. Ini menjaga bot tetap tidur-sleep.
+Bot dijalankan sebagai job [GitHub Actions](.github/workflows/bot.yml) di repo (public) —
+gratis unlimited untuk public repo, restart otomatis tiap ±6 jam, auto-reconnect bila crash.
+
+1. **Repo → public**: GitHub → Settings → General → Danger Zone → Change visibility → Public.
+2. **GitHub Secrets**: repo → Settings → Secrets and variables → Actions → `New repository secret`, isi:
+   `DISCORD_TOKEN`, `SPREADSHEET_ID`, `GEMINI_API_KEY`, `SERVICE_ACCOUNT_JSON` (seluruh isi `service-account.json`),
+   `MONEY_CHANNEL_ID` (opsional). (`GEMINI_MODEL` & `BOT_TIMEZONE` sudah tertulis di workflow.)
+3. Jalankan: tab **Actions** → `pencatat-keuangan-bot` → **Run workflow**. Lanjutnya otomatis via schedule.
+4. **Lokal saat host nyala**: cukup `Ctrl+C` `npm start` — jangan dua instance aktif bersamaan (token konflik).
 
 ## ⚠️ Catatan kuota/limit (free tier)
 
 | Layanan | Limit yang penting |
 |---|---|
 | Gemini | ±15 RPM / 1.500 RPD (Flash & Lite). Bot sudah punya rate-limit bawaan 8 chat AI / menit per user |
-| Render | Free web service tidur (idle 15 menit) — jangan biarkan tanpa keep-alive |
+| Render | (dihapus: butuh verifikasi kartu kredit) |
 | Sheets | Tidak ada kekawatiran untuk skala pribadi/komunitas kecil |
 
 ## 🔏 Privasi multi-user
