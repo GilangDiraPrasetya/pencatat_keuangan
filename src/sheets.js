@@ -12,15 +12,39 @@ const HEADER = [
 ];
 
 // ---------- Konfigurasi ----------
+// Dua mode: (1) file JSON key lokal via SERVICE_ACCOUNT_KEY_FILE (paling aman),
+//           (2) isi JSON service account utuh di env SERVICE_ACCOUNT_JSON (untuk deploy Render, file tak ter-commit)
 let cachedConfig = false;
 function getConfig() {
   if (cachedConfig !== false) return cachedConfig;
   const spreadsheetId = (process.env.SPREADSHEET_ID || '').trim();
-  const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
+  if (!spreadsheetId) return false;
+
   const keyFile = (process.env.SERVICE_ACCOUNT_KEY_FILE || '').trim();
-  if (!spreadsheetId || !email || !keyFile || !fs.existsSync(keyFile)) return false;
-  cachedConfig = { spreadsheetId, email, keyFile };
-  return cachedConfig;
+  if (keyFile && fs.existsSync(keyFile)) {
+    const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
+    if (!email) return false;
+    cachedConfig = { spreadsheetId, email, keyFile };
+    return cachedConfig;
+  }
+
+  const inline = (process.env.SERVICE_ACCOUNT_JSON || '').trim();
+  if (inline) {
+    try {
+      const sa = JSON.parse(inline);
+      if (!sa.private_key || !sa.client_email) {
+        console.error('[sheets] SERVICE_ACCOUNT_JSON tidak berisi private_key/client_email');
+        return false;
+      }
+      cachedConfig = { spreadsheetId, email: sa.client_email, key: sa.private_key };
+      return cachedConfig;
+    } catch (e) {
+      console.error('[sheets] SERVICE_ACCOUNT_JSON bukan JSON valid:', e.message.slice(0, 120));
+      return false;
+    }
+  }
+
+  return false;
 }
 
 function isConfigured() {
@@ -34,7 +58,8 @@ async function getClient() {
   }
   const auth = new google.auth.JWT({
     email: cfg.email,
-    keyFile: cfg.keyFile,
+    key: cfg.key,          // dipakai pada mode env SERVICE_ACCOUNT_JSON
+    keyFile: cfg.keyFile,  // dipakai pada mode file JSON lokal
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
   return { sheets: google.sheets({ version: 'v4', auth }), cfg };
