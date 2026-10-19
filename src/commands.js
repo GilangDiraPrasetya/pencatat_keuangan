@@ -149,25 +149,58 @@ async function cmdHapus(message, args) {
 }
 
 // ---------- !saldo ----------
+/** Parser angka uang Indonesia: "1.500.000", "2,5 juta", "500ribu", "2.5k", "25rb" → angka int */
 function toInt(x) {
-  const raw = String(x || '').trim();
+  let raw = String(x || '').trim().toLowerCase();
   if (!raw || !/\d/.test(raw)) return null;
-  const n = Number(raw.replace(/\./g, '').replace(/,/g, '').replace(/[^0-9\-]/g, ''));
-  return Number.isFinite(n) ? n : null;
+  const usedDecimal = /[.,]/.test(raw);
+
+  let mult = 1;
+  if (/juta|jt\b/.test(raw)) {
+    mult = 1000000;
+    raw = raw.replace(/juta/g, '').replace(/jt\b/g, '');
+  } else if (/ribu|rbu\b|rb\b|(\d)k(\s|$)/.test(raw)) {
+    mult = 1000;
+    raw = raw.replace(/ribu/g, '').replace(/rbu/g, 'rb').replace(/rb\b/g, '').replace(/(\d)k(\s|$)/g, '$1');
+  }
+
+  raw = raw.replace(/\s+/g, '').replace(/[^0-9.,\-]/g, '');
+  if (!/\d/.test(raw)) return null;
+
+  // "1.500.000" / "1500,000" → ribuan (semua grup pas 3 digit) → buang pemisah
+  const thousands = /^-?\d{1,3}(\.\d{3})+$/.test(raw) || /^-?\d{1,3}(,\d{3})+$/.test(raw);
+  if (thousands) {
+    raw = raw.replace(/[.,]/g, '');
+  } else {
+    raw = raw.replace(/,/g, '.'); // "2,5" → 2.5
+  }
+
+  // desimal tanpa satuan ("2,5" / "1,5") dalam kontekst keuangan = pecahan ribu
+  if (mult === 1 && usedDecimal && !thousands) {
+    const n0 = Number(raw);
+    if (Number.isFinite(n0) && n0 > 0 && n0 < 10) return Math.round(n0 * 1000);
+  }
+
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n * mult);
 }
 
-// format: !saldo awal [kas N] [tabungan N] — urutan bebas, boleh salah satu saja
+// format: !saldo awal [kas N] [tabungan N] — urutan bebas, boleh salah satu saja,
+// bentuk angka bebas: 1500000 / 1.500.000 / 1,5jt / 1,5 juta / 500ribu / 2.5jt
 function parseAwalArgs(args) {
+  // bridge: "kas=500ribu" atau kode sama-sama → pisah "=" jadi spasi
+  const args2 = args.map((a) => a.replace(/=/g, ' ').split(/\s+/)).flat();
   let cash = null;
   let savings = null;
-  for (let i = 0; i < args.length; i++) {
-    const k = String(args[i]).toLowerCase();
+  for (let i = 0; i < args2.length; i++) {
+    const k = String(args2[i]).toLowerCase();
     if (k === 'kas' || k === 'cash') {
-      const v = toInt(args[i + 1]);
+      const v = toInt(args2[i + 1]);
       if (v != null) cash = v;
       i++;
     } else if (['savings', 'saving', 'tabungan'].includes(k)) {
-      const v = toInt(args[i + 1]);
+      const v = toInt(args2[i + 1]);
       if (v != null) savings = v;
       i++;
     }
