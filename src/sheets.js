@@ -421,6 +421,139 @@ async function resetCategories() {
   invalidateCats();
 }
 
+// ---------- Saldo awal (baseline per-user, tab "Balances") ----------
+const BAL_SHEET_NAME = 'Balances';
+const BAL_HEADER = ['user_id', 'username', 'cash', 'savings', 'updated_at'];
+
+let balReady = false;
+
+async function ensureBalSheet() {
+  if (balReady) return;
+  const { sheets, cfg } = await getClient();
+
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: cfg.spreadsheetId });
+  const exists = (meta.data.sheets || []).some((s) => s.properties?.title === BAL_SHEET_NAME);
+  if (!exists) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: cfg.spreadsheetId,
+      resource: { requests: [{ addSheet: { properties: { title: BAL_SHEET_NAME } } }] },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${BAL_SHEET_NAME}!A1`,
+      valueInputOption: 'RAW',
+      resource: { values: [BAL_HEADER] },
+    });
+  } else {
+    const head = await sheets.spreadsheets.values.get({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${BAL_SHEET_NAME}!A1:E1`,
+    });
+    if (!(head.data.values || []).length) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.spreadsheetId,
+        range: `${BAL_SHEET_NAME}!A1`,
+        valueInputOption: 'RAW',
+        resource: { values: [BAL_HEADER] },
+      });
+    }
+  }
+  balReady = true;
+}
+
+async function readBalanceRows() {
+  await ensureBalSheet();
+  const { sheets, cfg } = await getClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${BAL_SHEET_NAME}!A2:E`,
+  });
+  return (res.data.values || []).map((v) => ({
+    userId: String(v[0] || '').trim(),
+    username: String(v[1] || ''),
+    cash: Number(String(v[2] ?? '0').replace(/[^0-9.\-]/g, '')) || 0,
+    savings: Number(String(v[3] ?? '0').replace(/[^0-9.\-]/g, '')) || 0,
+    updatedAt: String(v[4] || ''),
+  }));
+}
+
+// Baseline user ini (null bila belum pernah diisi).
+async function getBalance(userId) {
+  const rows = await readBalanceRows();
+  return rows.find((x) => x.userId === String(userId)) || null;
+}
+
+/** Upsert saldo awal. cash/savings null berarti "biarkan nilai lama". */
+async function setBalance(user, { cash, savings }) {
+  await ensureBalSheet();
+  const { sheets, cfg } = await getClient();
+  const rows = await readBalanceRows();
+  const idx = rows.findIndex((x) => x.userId === String(user.id));
+  const merged = {
+    cash: cash != null ? Math.round(cash) : (idx >= 0 ? rows[idx].cash : 0),
+    savings: savings != null ? Math.round(savings) : (idx >= 0 ? rows[idx].savings : 0),
+  };
+  const values = [[
+    String(user.id),
+    user.username || user.globalName || 'user',
+    merged.cash,
+    merged.savings,
+    localTimestamp(),
+  ]];
+  if (idx >= 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${BAL_SHEET_NAME}!A${idx + 2}`,
+      valueInputOption: 'RAW',
+      resource: { values },
+    });
+  } else {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${BAL_SHEET_NAME}!A1`,
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      resource: { values },
+    });
+  }
+  return merged;
+}
+
+/** Hapus baseline user (kembali ke mode tanpa saldo awal). */
+async function resetBalance(userId) {
+  await ensureBalSheet();
+  const { sheets, cfg } = await getClient();
+  const rows = await readBalanceRows();
+  const idx = rows.findIndex((x) => x.userId === String(userId));
+  if (idx < 0) return false;
+  const keep = rows.filter((_, i) => i !== idx).map((r) => [r.userId, r.username, r.cash, r.savings, r.updatedAt]);
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: cfg.spreadsheetId,
+    range: `${BAL_SHEET_NAME}!A2:E`,
+  });
+  if (keep.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: cfg.spreadsheetId,
+      range: `${BAL_SHEET_NAME}!A2`,
+      valueInputOption: 'RAW',
+      resource: { values: keep },
+    });
+  }
+  return true;
+}
+
+/**
+ * Posisi terkini = baseline + seluruh pergerakan user (semua transaksi OK,
+ * bukan hanya bulan berjalan). s.net sudah = pendapatan − pengeluaran − setor bersih.
+ */
+function applyBaseline(s, base) {
+  return {
+    cash: (base ? base.cash : 0) + s.net,
+    savings: (base ? base.savings : 0) + s.savingsNet,
+    hasBaseline: Boolean(base),
+  };
+}
+
 // ---------- Agregasi (dihitung di kode, bukan AI — angka selalu akurat) ----------
 // type = arus kas (INCOME masuk / EXPENSE keluar), group = kelompok kategori.
 // Tabungan: uang dipindah ke / ditarik dari tabungan — dihitung bersih (setor − tarik),
@@ -481,6 +614,11 @@ module.exports = {
   removeCategory,
   moveCategory,
   resetCategories,
+  // saldo awal
+  getBalance,
+  setBalance,
+  resetBalance,
+  applyBaseline,
   DEFAULT_CATEGORIES,
   GROUP_KEYS,
   GROUP_LABEL,

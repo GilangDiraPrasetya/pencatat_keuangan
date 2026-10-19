@@ -18,6 +18,7 @@ Bot Discord yang mencatat keuangan dari chat bahasa sehari-hari:
 | Pemahaman uang Indonesia | `2 ribu`/`2rb`/`2k` = 2.000 · `300rb` = 300.000 · `2,5 jt` = 2.500.000 |
 | Kategori otomatis, 3 kelompok | Pendapatan / Pengeluaran / Tabungan — tersimpan di kolom `group` |
 | Kelola kategori dari Discord | `!kategori`, `!kategori tambah tabungan Dana Kuliah`, `!kategori hapus <nama>`, `!kategori pindah <grup> <nama>`, `!kategori reset` |
+| Saldo awal & posisi terkini | `!saldo awal kas 1.500.000 tabungan 2.500.000` → semua angka dihitung dari baseline kamu; `!saldo` untuk melihat posisi sekarang |
 | Rekap instan | `!rekap`, `!rekap hari`, `!rekap 9`, `!rekap lalu`, `!rekap all` |
 | Batalkan salah catat | `!hapus 12` (ID ada di footer reply bot) |
 | Tanya-jawab AI | "berapa pengeluaran bulan ini", "berapa margin", "apa saja yang saya beli tanggal 3" |
@@ -59,7 +60,7 @@ GEMINI_API_KEY=...                        # C.1
 GEMINI_MODEL=gemini-3.5-flash-lite        # C.2
 ```
 
-`MONEY_CHANNEL_ID` (opsional): ID channel keuangan; kalau diisi, bot merespons semua chat di sana. Kosong = bot hanya merespons saat di-mention / di DM. (Aktifkan Developer Mode di Discord untuk bisa *Copy Channel ID*.) Tab `Transactions` dan tab `Categories` (daftar kategori + kelompok: pendapatan/pengeluaran/tabungan) di spreadsheet **dibuat otomatis** bot.
+`MONEY_CHANNEL_ID` (opsional): ID channel keuangan; kalau diisi, bot merespons semua chat di sana. Kosong = bot hanya merespons saat di-mention / di DM. (Aktifkan Developer Mode di Discord untuk bisa *Copy Channel ID*.) Tab `Transactions`, tab `Categories` (kategori + 3 kelompok: pendapatan/pengeluaran/tabungan), dan tab `Balances` (saldo awal per-user) di spreadsheet **dibuat otomatis** bot.
 
 ```bash
 npm install
@@ -82,6 +83,8 @@ ambil tabungan 500rb buat beli sepatu    → tabungan −500rb + pengeluaran 500
 !hapus 12                    → batalkan transaksi #12
 !kategori                    → lihat 3 kelompok kategori
 !kategori tambah <grup> <nama> / hapus / pindah / reset
+!saldo                       → saldo awal + posisi terkini (kas & tabungan)
+!saldo awal kas 1500000 tabungan 2500000 → set posisi awal
 berapa pengeluaran bulan ini → jawaban AI dari datamu
 berapa margin                → pendapatan − pengeluaran
 ```

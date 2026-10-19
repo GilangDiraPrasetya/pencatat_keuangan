@@ -27,6 +27,8 @@ const HELP_TEXT = [
   '   `!rekap` — rekap bulan ini',
   '   `!rekap hari` / `!rekap 8` / `!rekap lalu` / `!rekap all` — variasi rentang',
   '   `!hapus <id>` — batalkan transaksi (ID ada di footer reply bot)',
+  '   `!saldo` — saldo awal + posisi terkini (kas & tabungan)',
+  '   `!saldo awal kas 1500000 tabungan 2500000` — isi posisi awal keuanganmu',
   '   `!kategori` — lihat daftar kategori (3 kelompok: Pendapatan/Pengeluaran/Tabungan)',
   '   `!kategori tambah <grup> <nama>` — contoh: `!kategori tambah tabungan Dana Kuliah`',
   '   `!kategori hapus <nama>` • `!kategori pindah <grup> <nama>` • `!kategori reset`',
@@ -55,7 +57,7 @@ async function cmdRekap(message, args) {
   const thisMonth = sheets.monthPrefix(0);
   const year = Number(thisMonth.slice(0, 4));
 
-  let rows = await sheets.getAllForUser(message.author.id);
+  const allRows = rows = await sheets.getAllForUser(message.author.id);
   let title;
 
   if (a === 'hari' || a === 'today') {
@@ -93,16 +95,32 @@ async function cmdRekap(message, args) {
 
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle(`📊 ${title}`)
-    .addFields(
-      { name: '💰 Pendapatan', value: fmt(s.income), inline: true },
-      { name: '🛒 Pengeluaran', value: fmt(s.expense), inline: true },
-      { name: '🏦 Tabungan (setor bersih)', value: fmt(s.savingsNet), inline: true },
-      { name: '📈 Kas tersisa (margin)', value: fmt(s.net), inline: true },
-      { name: 'Jumlah transaksi', value: String(s.count), inline: true },
-      { name: 'Top kategori pengeluaran', value: top || '—', inline: false }
-    )
-    .setFooter({ text: `User: ${message.author.username}` });
+    .setTitle(`📊 ${title}`);
+
+  // Bila user mengisi saldo awal, tampilkan posisi terkini di atas rekap rentang
+  try {
+    const base = await sheets.getBalance(message.author.id);
+    if (base) {
+      const pos = sheets.applyBaseline(sheets.summarize(allRows), base);
+      embed.addFields(
+        { name: '💰 Kas sekarang', value: fmt(pos.cash), inline: true },
+        { name: '🏦 Tabungan sekarang', value: fmt(pos.savings), inline: true },
+        { name: 'Baseline awal', value: `kas ${fmt(base.cash)} • tabungan ${fmt(base.savings)}`, inline: false }
+      );
+    }
+  } catch (e) {
+    console.error('[commands] gagal ambil baseline:', e.message);
+  }
+
+  embed.addFields(
+    { name: '💰 Pendapatan', value: fmt(s.income), inline: true },
+    { name: '🛒 Pengeluaran', value: fmt(s.expense), inline: true },
+    { name: '🏦 Tabungan (setor bersih)', value: fmt(s.savingsNet), inline: true },
+    { name: '📈 Kas tersisa (margin)', value: fmt(s.net), inline: true },
+    { name: 'Jumlah transaksi', value: String(s.count), inline: true },
+    { name: 'Top kategori pengeluaran', value: top || '—', inline: false }
+  );
+  embed.setFooter({ text: `User: ${message.author.username}` });
 
   return message.reply({ embeds: [embed] });
 }
@@ -128,6 +146,85 @@ async function cmdHapus(message, args) {
     deleted: 'Transaksi itu sudah dihapus sebelumnya.',
   };
   return message.reply(`❌ ${alasan[res.reason] || 'Gagal menghapus.'}`);
+}
+
+// ---------- !saldo ----------
+function toInt(x) {
+  const raw = String(x || '').trim();
+  if (!raw || !/\d/.test(raw)) return null;
+  const n = Number(raw.replace(/\./g, '').replace(/,/g, '').replace(/[^0-9\-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+// format: !saldo awal [kas N] [tabungan N] — urutan bebas, boleh salah satu saja
+function parseAwalArgs(args) {
+  let cash = null;
+  let savings = null;
+  for (let i = 0; i < args.length; i++) {
+    const k = String(args[i]).toLowerCase();
+    if (k === 'kas' || k === 'cash') {
+      const v = toInt(args[i + 1]);
+      if (v != null) cash = v;
+      i++;
+    } else if (['savings', 'saving', 'tabungan'].includes(k)) {
+      const v = toInt(args[i + 1]);
+      if (v != null) savings = v;
+      i++;
+    }
+  }
+  return { cash, savings, hasAny: cash != null || savings != null };
+}
+
+async function cmdSaldo(message, args) {
+  if (!sheets.isConfigured()) return message.reply(SETUP_SHEETS);
+
+  const sub = (args[0] || '').toLowerCase();
+
+  if (sub === 'awal' || sub === 'set') {
+    const pairs = parseAwalArgs(args.slice(1));
+    if (!pairs.hasAny) {
+      return message.reply('Format: `!saldo awal kas <jumlah> tabungan <jumlah>` — boleh salah satu saja.\nContoh: `!saldo awal kas 1.500.000 tabungan 2.500.000`');
+    }
+    const base = await sheets.setBalance(message.author, { cash: pairs.cash, savings: pairs.savings });
+    return message.reply(`✅ Saldo awal tersimpan: kas ${fmt(base.cash)} • tabungan ${fmt(base.savings)}\n(Angka ini jadi titik tolak semua hitungan posisi terkini.)`);
+  }
+
+  if (sub === 'reset') {
+    const removed = await sheets.resetBalance(message.author.id);
+    return message.reply(removed
+      ? '♻️ Saldo awal dihapus. Posisi dihitung kembali hanya dari transaksi yang tercatat.'
+      : 'Belum ada saldo awal yang tersimpan — tidak ada yang direset.');
+  }
+
+  // default: tampilkan baseline + posisi terkini
+  const [base, allRows] = await Promise.all([
+    sheets.getBalance(message.author.id),
+    sheets.getAllForUser(message.author.id),
+  ]);
+
+  if (!base && !allRows.length) {
+    return message.reply(
+      '📭 Belum ada apa-apa. Mulai dengan isi posisi awalmu:\n`!saldo awal kas 1.500.000 tabungan 2.500.000`\natau langsung catat: "bayar makan 20rb"'
+    );
+  }
+
+  const sAll = sheets.summarize(allRows);
+  const pos = sheets.applyBaseline(sAll, base);
+  const mp = sheets.monthPrefix(0);
+  const sMonth = sheets.summarize(allRows.filter((r) => (r.date || '').startsWith(mp)));
+
+  const embed = new EmbedBuilder()
+    .setColor(0x57f287)
+    .setTitle('💼 Posisi Keuangan')
+    .addFields(
+      { name: '💰 Kas sekarang', value: fmt(pos.cash), inline: true },
+      { name: '🏦 Tabungan sekarang', value: fmt(pos.savings), inline: true },
+      { name: 'Baseline (saldo awal)', value: base ? `kas ${fmt(base.cash)} • tabungan ${fmt(base.savings)}` : 'belum diisi — set: `!saldo awal kas ... tabungan ...`', inline: false },
+      { name: 'Bulan ini', value: `pendapatan ${fmt(sMonth.income)} • pengeluaran ${fmt(sMonth.expense)} • tabungan ${fmt(sMonth.savingsNet)}`, inline: false }
+    )
+    .setFooter({ text: `User: ${message.author.username}` });
+
+  return message.reply({ embeds: [embed] });
 }
 
 // ---------- !kategori ----------
@@ -221,6 +318,8 @@ async function handleCommand(message) {
       return cmdRekap(message, args);
     case '!hapus':
       return cmdHapus(message, args);
+    case '!saldo':
+      return cmdSaldo(message, args);
     case '!kategori':
       return cmdKategori(message, args);
     default:

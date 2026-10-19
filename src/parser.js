@@ -132,13 +132,16 @@ function normalizeParse(result, cats) {
 }
 
 // ---------- Handler transaksi (tunggal & multi) ----------
-function saldoBulanIni(rows) {
+// Teks saldo: pakai posisi terkini (baseline + semua transaksi) bila user pernah
+// mengisi saldo awal; kalau belum, tampilkan ringkasan bulan berjalan seperti versi lama.
+function buildSaldoText(rows, base) {
   const mp = sheets.monthPrefix(0);
-  const s = sheets.summarize(rows.filter((r) => (r.date || '').startsWith(mp)));
-  return {
-    text: `Bulan ini: pendapatan ${fmt(s.income)} • pengeluaran ${fmt(s.expense)} • tabungan ${fmt(s.savingsNet)} • kas tersisa (margin) ${fmt(s.net)}`,
-    raw: s,
-  };
+  const sMonth = sheets.summarize(rows.filter((r) => (r.date || '').startsWith(mp)));
+  if (base) {
+    const pos = sheets.applyBaseline(sheets.summarize(rows), base);
+    return `Posisi: kas ${fmt(pos.cash)} • tabungan ${fmt(pos.savings)}\nBulan ini: pendapatan ${fmt(sMonth.income)} • pengeluaran ${fmt(sMonth.expense)} • tabungan ${fmt(sMonth.savingsNet)}`;
+  }
+  return `Bulan ini: pendapatan ${fmt(sMonth.income)} • pengeluaran ${fmt(sMonth.expense)} • tabungan ${fmt(sMonth.savingsNet)} • kas tersisa (margin) ${fmt(sMonth.net)}`;
 }
 
 function badge(t) {
@@ -169,7 +172,8 @@ async function handleTransaction(message, sent, items) {
     let saldo = '';
     try {
       const rows = await sheets.getAllForUser(message.author.id);
-      saldo = saldoBulanIni(rows).text;
+      const base = await sheets.getBalance(message.author.id);
+      saldo = buildSaldoText(rows, base);
     } catch (e) {
       console.error('[parser] gagal hitung saldo:', e.message);
     }
@@ -193,7 +197,8 @@ async function handleTransaction(message, sent, items) {
   let saldo = '';
   try {
     const rows = await sheets.getAllForUser(message.author.id);
-    saldo = saldoBulanIni(rows).text;
+    const base = await sheets.getBalance(message.author.id);
+    saldo = buildSaldoText(rows, base);
   } catch (e) {
     console.error('[parser] gagal hitung saldo:', e.message);
   }
@@ -207,7 +212,7 @@ async function handleTransaction(message, sent, items) {
 }
 
 // ---------- Handler pertanyaan (Q&A) ----------
-function buildFacts(rows) {
+function buildFacts(rows, base) {
   const today = sheets.localDateStr();
   const mp = sheets.monthPrefix(0);
   const mpLalu = sheets.monthPrefix(-1);
@@ -229,6 +234,9 @@ function buildFacts(rows) {
     ? ` (margin ${(bulanIni.net / bulanIni.income * 100).toFixed(1)}%)`
     : '';
 
+  // Posisi terkini = baseline (kalau diisi) + seluruh transaksi user
+  const pos = sheets.applyBaseline(sheets.summarize(rows), base);
+
   const lines = rows
     .slice(-150)
     .map((r) => `#${r.rowIndex} | ${r.date} | ${r.type} | ${r.group || '-'} | ${r.category} | ${r.description} | ${fmt(r.amount)}`)
@@ -237,6 +245,9 @@ function buildFacts(rows) {
   return [
     `Tanggal hari ini: ${today}. Bulan berjalan: ${mp}. Bulan lalu: ${mpLalu}.`,
     'Istilah: pengeluaran = konsumsi barang/jasa; tabungan = uang dipindah ke/dari tabungan (bukan biaya); margin/kas tersisa = pendapatan − pengeluaran − setor tabungan bersih (uang yang benar-benar tersisa di kas).',
+    '',
+    'SALDO AWAL (baseline user):' + (base ? ` kas ${fmt(base.cash)}, tabungan ${fmt(base.savings)}` : ' belum diisi (asumsi mulai dari nol)'),
+    `POSISI TERKINI: kas ${fmt(pos.cash)} • tabungan ${fmt(pos.savings)} = baseline + seluruh transaksimu`,
     '',
     'RINGKASAN TERHITUNG KODE (angka ini pasti benar, pakai untuk jawaban):',
     `- Bulan ini: pendapatan ${fmt(bulanIni.income)}, pengeluaran ${fmt(bulanIni.expense)}, tabungan (setor bersih) ${fmt(bulanIni.savingsNet)}, margin/kas tersisa ${fmt(bulanIni.net)}${marginPct}, jumlah ${bulanIni.count} transaksi`,
@@ -251,10 +262,14 @@ function buildFacts(rows) {
 }
 
 async function handleQuestion(message, sent, question, rows) {
+  const base = await sheets.getBalance(message.author.id);
   if (!rows.length) {
+    if (base && (base.cash || base.savings)) {
+      return sent.edit(`💼 Posisi terkini: kas ${fmt(base.cash)} • tabungan ${fmt(base.savings)} — tapi belum ada transaksi tercatat. Coba catat dulu, misal: "bayar kopi 25rb"`);
+    }
     return sent.edit('📭 Belum ada transaksi tercatat untukmu. Coba catat dulu, misal: "bayar kopi 25rb"');
   }
-  const facts = buildFacts(rows);
+  const facts = buildFacts(rows, base);
   const prompt = [
     `Kamu asisten keuangan user Discord "${message.author.username}".`,
     'Jawab pertanyaan user memakai HANYA data pada bagian "RINGKASAN TERHITUNG KODE" dan "DATA TRANSAKSI" berikut.',

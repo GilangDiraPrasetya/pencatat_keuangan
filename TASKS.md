@@ -155,12 +155,13 @@ Rancangan:
   - embed transaksi & `!rekap` menampilkan **posisi terkini** (kas & tabungan) saat baseline tersedia;
   - Q&A ("berapa saldo saya", "berapa sisa uangku") memakai posisi terkini; facts AI ditambah baseline.
 Checklist:
-- [ ] Tab `Balances` otomatis + upsert per-user
-- [ ] `!saldo` (lihat), `!saldo awal ...` (set), `!saldo reset`
-- [ ] Agregasi memakai baseline (kas sekarang & tabungan sekarang)
-- [ ] Embed transaksi/`!rekap` menampilkan posisi terkini saat baseline ada
-- [ ] Q&A facts memuat baseline + posisi terkini
-- [ ] README + FLOW diperbarui
+- [x] Tab `Balances` otomatis + upsert per-user (roundtrip test riil ✓)
+- [x] `!saldo` (lihat), `!saldo awal kas N tabungan M` (parsial ok), `!saldo reset`
+- [x] Agregasi baseline: kas = baseline + s.net; tabungan = baseline + s.savingsNet (unit test ✓)
+- [x] Embed transaksi/`!saldo`/`!rekap` menampilkan	posisi terkini saat baseline ada
+- [x] Q&A facts memuat SALDO AWAL + POSISI TERKINI (buildFacts(rows, base))
+- [x] README diperbarui (FLOW.md Alur F sudah dibuat saat desain)
+Status: [x] code selesai — menunggu verifikasi di Discord
 DoD (uji di Discord):
 - `!saldo awal kas 1500000 tabungan 2500000` → tersimpan; `!saldo` → kas 1.5jt & tabungan 2.5jt;
 - `menabung 100rb` → kas 1.4jt, tabungan 2.6jt; `gajian 1jt` → kas 2.4jt; `!rekap` cocok; `berapa saldo saya` → jawaban pakai posisi terkini; user lain tidak terpengaruh.
