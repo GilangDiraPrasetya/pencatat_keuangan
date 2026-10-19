@@ -97,7 +97,7 @@ Checklist:
 
 ---
 
-## ⭐ C7 — Kelompok kategori (pendapatan/pengeluaran/tabungan) + `!kategori` dari Discord  ← *Kita di sini*
+## ✅ C7 — Kelompok kategori (pendapatan/pengeluaran/tabungan) + `!kategori` dari Discord
 Rancangan:
 - Tab baru `Categories` (kolom `name`, `group`) — dibuat otomatis + seed default; sumber daftar kategori parser & `!kategori`.
 - Kolom baru `group` (INCOME/EXPENSE/SAVINGS) di tab `Transactions` (kolom L, tambahan di akhir agar data lama tetap valid).
@@ -111,7 +111,27 @@ Checklist:
 - [x] Q&A menyertakan total 3 kelompok
 DoD (uji di Discord — tinggal verifikasi kamu):
 - `!kategori` menampilkan 3 grup; `menabung 50rb` → grup Tabungan; `gajian 3 juta` → Pendapatan; `bayar parkir 2 ribu` → Pengeluaran; `!rekap` menampilkan 3 jalur + margin benar; `!kategori tambah tabungan Dana Kuliah` lalu `menabung 20rb` → masuk Dana Kuliah.
-Status: [x] code selesai —nunggu verifikasi di Discord
+Status: [x] selesai — LOLOS verifikasi user 2026-10-19
+
+---
+
+## ⭐ C8 — Multi-transaksi dalam 1 chat  ← *Kita di sini*
+Rancangan:
+- Parser Gemini mendukung `items: []` (max 6 per pesan) — kata penghubung "kemudian/lalu/… buat …/dan" dipecah jadi beberapa transaksi.
+- Semantik margin diperjelas: **margin = kas tersisa = pendapatan − pengeluaran (konsumsi) − tabungan (setor bersih)**.
+  - "gaji 3.5jt kemudian ditabung 500rb" → pendapatan 3.5jt, tabungan +500rb, margin 3.0jt (pendapatan berkurang 500rb ✓)
+  - "ambil tabungan 500rb buat beli sepatu" → tabungan −500rb, pengeluaran +500rb, margin 0 ✓
+- Reply embed ganda: 1 embed berisi daftar semua transaksi + ID masing-masing.
+Checklist:
+- [ ] Parser: multi-item (contoh user jadi few-shot di prompt)
+- [ ] `summarize()`: margin = pend − peng − tabunganBersih (dengan kasus uji)
+- [ ] Embed multi: daftar + saldo bulan ini + footer IDs
+- [ ] `!rekap` & Q&A memakai istilah "kas tersisa"
+DoD (uji di Discord):
+- "gaji 3.500.000 kemudian ditabung 500.000" → 2 transaksi: Pendapatan 3.5jt + Tabungan 500rb; `!rekap` margin = 3.000.000.
+- "ambil tabungan 500.000 buat beli sepatu" → 2 transaksi: Tabungan −500rb (tarik) + Pengeluaran 500rb (sepatu); `!rekap` margin 0.
+- 1 chat biasa ("menabung 100rb") tetap bekerja.
+Status: [ ] code — menunggu verifikasi
 
 ---
 
@@ -130,3 +150,4 @@ Semua checkpoint C0–C6 lolos pada 2026-10-19.
 | 2026-10-19 | C4 | `!rekap` 5 varian + `!hapus` lolos; angka cocok Sheets ✅ |
 | 2026-10-19 | C5 | Q&A AI akurat (angka = hitungan kode) + uji jujur data kosong ✅ |
 | 2026-10-19 | C6 | Deploy 24/7 via GitHub Actions (Render = minta kartu → dihapus); VS Code publish; Secrets 5 item ✅ **MVP SELESAI** |
+| 2026-10-19 | C7 | !kategori + 3 kelompok (pendapatan/pengeluaran/tabungan) + kolom group — LOLOS ✅ |

@@ -18,6 +18,7 @@ const HELP_TEXT = [
   '',
   '📝 **Catat otomatis** — tulis gaya biasa di channel keuangan (atau mention bot):',
   '   "bayar parkir 2 ribu" • "makan siang 15k" • "gajian 3 juta" • "menabung 100rb"',
+  '   Bisa beberapa sekaligus: "gaji 3.500.000 kemudian ditabung 500.000"',
   '',
   '❓ **Tanya data** — tanya apa saja soal keuanganmu:',
   '   "berapa pengeluaran bulan ini" • "berapa margin" • "apa saja yang saya beli tanggal 3"',
@@ -97,7 +98,7 @@ async function cmdRekap(message, args) {
       { name: '💰 Pendapatan', value: fmt(s.income), inline: true },
       { name: '🛒 Pengeluaran', value: fmt(s.expense), inline: true },
       { name: '🏦 Tabungan (setor bersih)', value: fmt(s.savingsNet), inline: true },
-      { name: '📈 Margin (pendapatan − pengeluaran)', value: fmt(s.net), inline: true },
+      { name: '📈 Kas tersisa (margin)', value: fmt(s.net), inline: true },
       { name: 'Jumlah transaksi', value: String(s.count), inline: true },
       { name: 'Top kategori pengeluaran', value: top || '—', inline: false }
     )

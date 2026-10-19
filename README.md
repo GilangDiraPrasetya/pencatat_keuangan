@@ -75,7 +75,9 @@ Konsol harus menampilkan `✅ Login berhasil sebagai ...` lalu tes: `!help`.
 bayar parkir 2 ribu          → expense Rp2.000
 gajian 3 juta                → income Rp3.000.000
 menabung 100rb               → tabungan (group SAVINGS)
-!rekap                       → rekap bulan ini (pendapatan/pengeluaran/tabungan + margin)
+gaji 3.500.000 kemudian ditabung 500.000 → 2 transaksi sekaligus (multi-item)
+ambil tabungan 500rb buat beli sepatu    → tabungan −500rb + pengeluaran 500rb
+!rekap                       → pendapatan/pengeluaran/tabungan + kas tersisa (margin)
 !rekap hari | 9 | lalu | all → variasi rentang
 !hapus 12                    → batalkan transaksi #12
 !kategori                    → lihat 3 kelompok kategori

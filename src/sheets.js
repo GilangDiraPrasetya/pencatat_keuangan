@@ -461,7 +461,8 @@ function summarize(rows) {
     income,
     expense,
     savingsNet: savingsOut - savingsIn,
-    net: income - expense,
+    // margin = kas tersisa: pendapatan − pengeluaran (konsumsi) − setor tabungan bersih
+    net: income - expense - (savingsOut - savingsIn),
     byCat,
   };
 }
