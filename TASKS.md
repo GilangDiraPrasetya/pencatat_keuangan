@@ -82,18 +82,23 @@ Checklist:
 
 ---
 
-## 🚀 C6 — Deploy gratis (GitHub Actions, tanpa kartu kredit) ← *Kita di sini*
+## ✅ C6 — Deploy gratis (GitHub Actions, tanpa kartu kredit)
 **Yang dilakukan:**
-1. `git init` + push ke GitHub (repo privat).
-2. Render.com → **New Web Service** → connect repo → Build: `npm install`, Start: `npm start` → isi semua env vars dari `.env`.
-3. Jalankan workflow manual pertama kali di tab Actions → `Run workflow`.
-4. README.md sudah final (deploy section diganti GitHub Actions).
+1. ~~`git init` + push ke GitHub~~ ✅ (repo public: GilangDiraPrasetya/pencatat_keuangan)
+2. ~~Render~~ **diganti GitHub Actions** — Render free tetap minta kartu kredit.
+3. Workflow `.github/workflows/bot.yml`: schedule tiap 6 jam + auto-restart 5s +	concurrency 1 instance; secret via GitHub Secrets (5 secret).
+4. README.md final (login via VS Code Publish to GitHub).
 
 Checklist:
-- [ ] Bot online 24/7 (tidak mati saat PC mati)
-- [ ] `/ping` endpoint merespons (untuk keep-alive)
-- [ ] `README.md` siap
-- **DoD:** deploy sukses, dokumentasi lengkap.
+- [x] Bot online 24/7 tanpa kartu kredit (job Actions: `✅ Login berhasil` 2026-10-19)
+- [x] Restart otomatis schedule 6 jam + loop crash-recovery
+- [x] README.md siap
+- **DoD:** deploy sukses, dokumentasi lengkap. [LOLOS 2026-10-19]
+
+---
+
+## 🏁 PROYEK MVP SELESAI
+Semua checkpoint C0–C6 lolos pada 2026-10-19.
 
 ---
 
@@ -106,3 +111,4 @@ Checklist:
 | 2026-10-19 | C3 | Parsing AI lolos 4/4 kasus; model → 3.5-flash-lite; timeout+retry ditambah ✅ |
 | 2026-10-19 | C4 | `!rekap` 5 varian + `!hapus` lolos; angka cocok Sheets ✅ |
 | 2026-10-19 | C5 | Q&A AI akurat (angka = hitungan kode) + uji jujur data kosong ✅ |
+| 2026-10-19 | C6 | Deploy 24/7 via GitHub Actions (Render = minta kartu → dihapus); VS Code publish; Secrets 5 item ✅ **MVP SELESAI** |
