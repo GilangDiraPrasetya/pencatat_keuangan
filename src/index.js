@@ -31,8 +31,10 @@ Message.prototype.reply = async function (rawOptions) {
     const dm = await this.author.createDM();
     return await dm.send(rawOptions);
   } catch (err) {
-    console.error('[index] DM gagal dibuka, fallback balas di channel:', err.message);
-    return origReply.call(this, rawOptions);
+    console.error('[index] DM gagal dibuka — kasih notice netral saja (jangan bocorkan balasan):', err.message);
+    return origReply.call(this,
+      '🔒 Gagal mengirim DM. Pastikan **Pengaturan → Privasi → "Allow direct messages from server members"** aktif untuk server ini, lalu ketik chat transaksimu di DM bot.'
+    );
   }
 };
 
@@ -100,11 +102,14 @@ async function handleMessage(message) {
     return;
   }
 
-  // 2) Chat AI: hanya di channel keuangan / saat di-mention / di DM
-  if (moneyChannel) {
-    if (message.channel.id !== moneyChannel && !isMentionedBot(message)) return;
-  } else if (message.guild && !isMentionedBot(message)) {
-    return;
+  // 2) Chat AI: di DM SELALU diproses (DM-only ramah, tak tergantung MONEY_CHANNEL_ID);
+  //    di server hanya channel keuangan / saat di-mention.
+  if (message.guild) {
+    if (moneyChannel) {
+      if (message.channel.id !== moneyChannel && !isMentionedBot(message)) return;
+    } else if (!isMentionedBot(message)) {
+      return;
+    }
   }
 
   hapusChatUser();
