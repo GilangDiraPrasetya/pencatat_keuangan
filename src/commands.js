@@ -36,6 +36,7 @@ const HELP_TEXT = [
   '',
   '🔒 Data tiap user terpisah; hanya kamu yang bisa melihat datamu.',
   '🔒 Privasi: chat di server dibalas lewat DM (ditandai 🔒) — transaksimu tidak terbaca anggota lain.',
+  '🔒 Chat di server terbaca orang — pakai **DM bot** langsung (tampilkan !help di DM-ku), di server bot hanya memberi arahan.',
 ].join('\n');
 
 const SETUP_SHEETS = [

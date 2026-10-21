@@ -50,16 +50,41 @@ client.once(Events.ClientReady, (c) => {
   console.log('🤖 Bot merespons:');
   console.log('   • perintah "!" di semua channel: !help, !rekap, !hapus');
   console.log('   • chat AI hanya di channel MONEY_CHANNEL_ID (jika diisi) atau saat bot di-mention, atau di DM');
+  console.log(`   • mode DM-only: ${DM_ONLY ? 'AKTIF — di server hanya arahan DM, layanan penuh di DM' : 'mati'}`);
 });
 
 function isMentionedBot(message) {
   return Boolean(client.user && message.mentions?.has?.(client.user));
 }
 
+// ---------- Mode DM-only ----------
+const DM_ONLY_GUIDE = [
+  '🔒 Mode privat: bot ini dipakai lewat **DM** supaya chat keuanganmu tidak terbaca anggota lain.',
+  'Buka profil bot di server → **Message** → kirim ke DM, misal:',
+  '"bayar parkir 2 ribu" · "gajian 3 juta" · "!saldo" · "!rekap" · "!help"',
+  'Datamu tetap milikmu sendiri (per user_id) — tidak ada yang bisa melihat.',
+].join('\n');
+
+// DM_ONLY=1 → di server bot hanya menjawab PENGARAHAN singkat (via DM, tersembunyi
+// dari channel); seluruh layanan hanya aktif di DM. Chat lain di server didiamkan.
+const DM_ONLY = process.env.DM_ONLY === '1';
+
 async function handleMessage(message) {
   if (message.author.bot) return;
   const content = (message.content || '').trim();
   if (!content) return;
+
+  const moneyChannel = (process.env.MONEY_CHANNEL_ID || '').trim();
+  const isMoneyChannel = Boolean(moneyChannel) && message.channel.id === moneyChannel;
+
+  if (DM_ONLY && message.guild) {
+    // Di guild: cukup beri arahan bila user tampaknya INGIN pakai bot
+    // (perintah "!", di channel keuangan, atau mention bot).
+    if (content.startsWith('!') || isMentionedBot(message) || isMoneyChannel) {
+      return message.reply(DM_ONLY_GUIDE); // dipatch reply → masuk DM (tidak muncul di channel)
+    }
+    return; // sisanya: chat biasa non-keuangan → diabaikan
+  }
 
   // hapusChatUser: PRIVACY_DELETE=1 → chat user dihapus setelah bot membacanya
   // (bot butuh izin "Manage Messages"; gagal = biarkan, jangan kejar).
@@ -76,7 +101,6 @@ async function handleMessage(message) {
   }
 
   // 2) Chat AI: hanya di channel keuangan / saat di-mention / di DM
-  const moneyChannel = (process.env.MONEY_CHANNEL_ID || '').trim();
   if (moneyChannel) {
     if (message.channel.id !== moneyChannel && !isMentionedBot(message)) return;
   } else if (message.guild && !isMentionedBot(message)) {

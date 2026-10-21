@@ -179,6 +179,8 @@ Checklist:
 - [x] Guard crash-loop (5x crash <10 detik → jeda 5 menit, job tetap hidup sampai giliran)
 - [x] Mode privat: semua balasan bot di server lewat DM + reaksi 🔒 (`Message.prototype.reply` patch); fallback ke channel bila DM terkunci
 - [x] `PRIVACY_MODE` = `dm` (default) / `open`; `PRIVACY_DELETE=1` opsional (hapus chat user di server; hanya pesan yang diproses)
+- [x] Mode **`DM_ONLY=1`** (aktif di workflow): di server bot tidak melayani apapun — chat di channel keuangan/`!`/mention dapat arahan singkat via DM; seluruh layanan aktif di DM (privasi 100%, isi chat user tidak di-channel)
+- [x] README: panduan pakai via DM + cara mengajak user lain (FTUE: masuk server → DM bot)
 - [x] README (deploy + privasi), `!help` mendapat penjelasan DM
 Status: [x] code selesai — menunggu verifikasi di Discord
 DoD: bot tetap online melewati pergantian run (gap < ~5 menit); chat di channel dibalas di DM dengan 🔒.

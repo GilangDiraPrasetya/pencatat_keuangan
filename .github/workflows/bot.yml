@@ -46,6 +46,8 @@ jobs:
           BOT_TIMEZONE: Asia/Jakarta
           MONEY_CHANNEL_ID: ${{ secrets.MONEY_CHANNEL_ID }}
           SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          PRIVACY_MODE: dm # balasan bot utk pesan server dikirim via DM (🔒)
+          DM_ONLY: '1' # di server bot hanya memberi arahan; layanan penuh di DM
         run: |
           MAX_SEC=19800 # umur bot per run: 5,5 jam, lalu genti run ((*) jauh < timeout job)
           fails=0

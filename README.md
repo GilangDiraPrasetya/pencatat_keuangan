@@ -72,6 +72,10 @@ Konsol harus menampilkan `✅ Login berhasil sebagai ...` lalu tes: `!help`.
 
 ## 🖥️ Cara pakai
 
+> **Privasi dulu: pakai lewat DM bot.** Buka profil bot di server → **Message** → semua perintah & chat di kirim di DM. User lain tidak bisa melihat isinya; hanya kamu & bot. Di channel server bot hanya memberi arahan singkat (mode `DM_ONLY`).
+>
+> **Mengajak teman/keluarga?** Tak perlu setup: ajang mereka masuk server → mereka DM bot → `!help`. Datamu tiap orang terpisah otomatis (per `user_id`).
+
 ```
 bayar parkir 2 ribu          → expense Rp2.000
 gajian 3 juta                → income Rp3.000.000
@@ -117,9 +121,10 @@ gratis unlimited untuk public repo, restart otomatis tiap ±6 jam, auto-reconnec
 
 - Setiap transaksi & pertanyaan di-filter **per user_id** Discord; seseorang tak bisa lihat/rekap/hapus data orang lain (dicek di `!hapus`).
 - Data raw tersimpan di Google Sheets-mu sendiri — bukan di pihak ketiga **selain** Google (hosting data) & Gemini (membaca teks untuk mem-parsing — jangan tulis info sensitif di pesan transaksi).
-- **Privasi antar-anggota server**: balasan bot untuk chat di server dikirim lewat **DM** (ditandai reaksi 🔒 di chat user) — isi transaksimu tidak terbaca anggota lain. Bila DM-mu tertutup, bot fallback membalas di channel.
-  - `PRIVACY_MODE` di workflow: `dm` (default) atau `open` (jawaban balik ke channel).
-  - `PRIVACY_DELETE=1` (opsional): chat user di server dihapus bot setelah dibaca (bot perlu izin **Manage Messages** di channel).
+- **Privasi antar-anggota server**: mode **DM** — `PRIVACY_MODE=dm` (default): balasan bot untuk pesan di server dikirim lewat DM (reaksi 🔒 di chat user); bila DM tertutup bot fallback ke channel.
+  - `DM_ONLY=1` (aktif di workflow): di server bot **tidak melayani** transaksi sama sekali — hanya memberi arahan singkat via DM ("pakai DM saya"); seluruh layanan aktif di DM. Chat pribadi 100%, tidak ada jejak di channel.
+  - `PRIVACY_DELETE=1` (opsional, nonaktif): chat user di channel dihapus bot setelah dibaca (butuh izin **Manage Messages**).
+- **Cara mengajak user lain**: tidak perlu setup! Mereka cukup: bergabung ke server (undang server biasa) → buka profil bot → **Message** → kirim `!help`. Data langsung terisolasi per-`user_id`, aman untuk banyak orang sekaligus.
 
 ## 📄 Struktur
 
