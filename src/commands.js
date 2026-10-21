@@ -35,6 +35,7 @@ const HELP_TEXT = [
   '   `!help` — menu bantuan ini',
   '',
   '🔒 Data tiap user terpisah; hanya kamu yang bisa melihat datamu.',
+  '🔒 Privasi: chat di server dibalas lewat DM (ditandai 🔒) — transaksimu tidak terbaca anggota lain.',
 ].join('\n');
 
 const SETUP_SHEETS = [
@@ -57,7 +58,8 @@ async function cmdRekap(message, args) {
   const thisMonth = sheets.monthPrefix(0);
   const year = Number(thisMonth.slice(0, 4));
 
-  const allRows = rows = await sheets.getAllForUser(message.author.id);
+  const allRows = await sheets.getAllForUser(message.author.id);
+  let rows = allRows;
   let title;
 
   if (a === 'hari' || a === 'today') {

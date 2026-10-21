@@ -100,7 +100,9 @@ gratis unlimited untuk public repo, restart otomatis tiap ±6 jam, auto-reconnec
 2. **GitHub Secrets**: repo → Settings → Secrets and variables → Actions → `New repository secret`, isi:
    `DISCORD_TOKEN`, `SPREADSHEET_ID`, `GEMINI_API_KEY`, `SERVICE_ACCOUNT_JSON` (seluruh isi `service-account.json`),
    `MONEY_CHANNEL_ID` (opsional). (`GEMINI_MODEL` & `BOT_TIMEZONE` sudah tertulis di workflow.)
-3. Jalankan: tab **Actions** → `pencatat-keuangan-bot` → **Run workflow**. Lanjutnya otomatis via schedule.
+3. Jalankan: tab **Actions** → `pencatat-keuangan-bot` → **Run workflow**. Setelah itu **self-chain**:
+   tiap run menjalankan bot ±5,5 jam, lalu run mengantre penggantinya sendiri — tidak menunggu cron.
+   Cron tiap 6 jam hanya jaring pengaman; push baru ke `main` tetap langsung deploy.
 4. **Lokal saat host nyala**: cukup `Ctrl+C` `npm start` — jangan dua instance aktif bersamaan (token konflik).
 
 ## ⚠️ Catatan kuota/limit (free tier)
@@ -115,6 +117,9 @@ gratis unlimited untuk public repo, restart otomatis tiap ±6 jam, auto-reconnec
 
 - Setiap transaksi & pertanyaan di-filter **per user_id** Discord; seseorang tak bisa lihat/rekap/hapus data orang lain (dicek di `!hapus`).
 - Data raw tersimpan di Google Sheets-mu sendiri — bukan di pihak ketiga **selain** Google (hosting data) & Gemini (membaca teks untuk mem-parsing — jangan tulis info sensitif di pesan transaksi).
+- **Privasi antar-anggota server**: balasan bot untuk chat di server dikirim lewat **DM** (ditandai reaksi 🔒 di chat user) — isi transaksimu tidak terbaca anggota lain. Bila DM-mu tertutup, bot fallback membalas di channel.
+  - `PRIVACY_MODE` di workflow: `dm` (default) atau `open` (jawaban balik ke channel).
+  - `PRIVACY_DELETE=1` (opsional): chat user di server dihapus bot setelah dibaca (bot perlu izin **Manage Messages** di channel).
 
 ## 📄 Struktur
 

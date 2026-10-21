@@ -5,9 +5,36 @@
 
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, Message } = require('discord.js');
 const commands = require('./commands');
 const parser = require('./parser');
+
+// ---------- Mode privat: balasan bot lewat DM ----------
+// Masalah: chat di channel server terbaca semua anggota — isi keuangan jadi terbuka.
+// Solusi: PRIVACY_MODE=dm (default) membuat SEMUA balasan bot untuk pesan di
+// server dikirim via DM. Penanda: bot merespons dengan reaksi 🔒 di chat user
+// ("jawaban ada di DM-mu"). Bila DM user terblokir, bot fallback membalas di
+// channel (ketersediaan menang). Set PRIVACY_MODE=open untuk perilaku lama.
+// PRIVACY_DELETE=1: chat user di server dihapus bot setelah dibaca (butuh izin
+// Manajemen Pesan) — user DM jadi satu-satunya jejak.
+const PRIVACY_DM = (process.env.PRIVACY_MODE || 'dm').toLowerCase() === 'dm';
+const PRIVACY_DELETE = process.env.PRIVACY_DELETE === '1'; // opsional: hapus chat user di server
+
+const origReply = Message.prototype.reply;
+Message.prototype.reply = async function (rawOptions) {
+  if (!this.guild || !PRIVACY_DM) return origReply.call(this, rawOptions);
+  // Di server: jangan tulis balasan ke channel — kirim DM saja.
+  try {
+    await this.react('🔒'); // tanda "jawaban ada di DM-mu"  (bila chat dihapus: reaksi gagal, abaikan)
+  } catch (_) {}
+  try {
+    const dm = await this.author.createDM();
+    return await dm.send(rawOptions);
+  } catch (err) {
+    console.error('[index] DM gagal dibuka, fallback balas di channel:', err.message);
+    return origReply.call(this, rawOptions);
+  }
+};
 
 const client = new Client({
   intents: [
@@ -34,8 +61,16 @@ async function handleMessage(message) {
   const content = (message.content || '').trim();
   if (!content) return;
 
+  // hapusChatUser: PRIVACY_DELETE=1 → chat user dihapus setelah bot membacanya
+  // (bot butuh izin "Manage Messages"; gagal = biarkan, jangan kejar).
+  const hapusChatUser = () => {
+    if (!PRIVACY_DELETE || !message.guild) return;
+    message.delete().catch((err) => console.error('[index] gagal menghapus chat user:', err.message));
+  };
+
   // 1) Perintah dengan prefix "!" selalu diproses (hemat kuota AI)
   if (content.startsWith('!')) {
+    hapusChatUser();
     await commands.handleCommand(message);
     return;
   }
@@ -48,6 +83,7 @@ async function handleMessage(message) {
     return;
   }
 
+  hapusChatUser();
   await parser.handleChat(message);
 }
 

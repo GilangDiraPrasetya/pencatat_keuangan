@@ -161,11 +161,27 @@ Checklist:
 - [x] Embed transaksi/`!saldo`/`!rekap` menampilkan	posisi terkini saat baseline ada
 - [x] Q&A facts memuat SALDO AWAL + POSISI TERKINI (buildFacts(rows, base))
 - [x] README diperbarui (FLOW.md Alur F sudah dibuat saat desain)
+- [x] fix bug `!saldo awal` singkatan uang: `500ribu`/`2.5juta`/`1,5jt`/`2,5` kini benar (17/17 uji ✓)
+- [x] fix bug `!rekap` (variabel `rows` jamrud tak dideklarasikan → ReferenceError saat strict mode)
 Status: [x] code selesai — menunggu verifikasi di Discord
 DoD (uji di Discord):
 - `!saldo awal kas 1500000 tabungan 2500000` → tersimpan; `!saldo` → kas 1.5jt & tabungan 2.5jt;
 - `menabung 100rb` → kas 1.4jt, tabungan 2.6jt; `gajian 1jt` → kas 2.4jt; `!rekap` cocok; `berapa saldo saya` → jawaban pakai posisi terkini; user lain tidak terpengaruh.
-Status: [ ] menunggu implementasi
+
+## 🔧 C10 — Perbaikan stabilitas Actions + privasi DM (2026-10-21)
+
+Problem 1: run Actions dibatalkan & tidak ada pengganti + cron GitHub telat 2–5 jam → bot mati berjam-jam.
+Problem 2: chat di channel server terbaca anggota lain → solusi balasan bot via DM.
+
+Checklist:
+- [x] Workflow self-chain: run menjalankan bot 5,5 jam → mengantre run berikutnya sendiri via workflow_dispatch (GITHUB_TOKEN, `permissions: actions: write`), retry 3x
+- [x] Cron 6 jam tetap sebagai jaring pengaman; push ke main tetap deploy instan
+- [x] Guard crash-loop (5x crash <10 detik → jeda 5 menit, job tetap hidup sampai giliran)
+- [x] Mode privat: semua balasan bot di server lewat DM + reaksi 🔒 (`Message.prototype.reply` patch); fallback ke channel bila DM terkunci
+- [x] `PRIVACY_MODE` = `dm` (default) / `open`; `PRIVACY_DELETE=1` opsional (hapus chat user di server; hanya pesan yang diproses)
+- [x] README (deploy + privasi), `!help` mendapat penjelasan DM
+Status: [x] code selesai — menunggu verifikasi di Discord
+DoD: bot tetap online melewati pergantian run (gap < ~5 menit); chat di channel dibalas di DM dengan 🔒.
 
 ---
 
@@ -186,3 +202,5 @@ Semua checkpoint C0–C6 lolos pada 2026-10-19.
 | 2026-10-19 | C6 | Deploy 24/7 via GitHub Actions (Render = minta kartu → dihapus); VS Code publish; Secrets 5 item ✅ **MVP SELESAI** |
 | 2026-10-19 | C7 | !kategori + 3 kelompok (pendapatan/pengeluaran/tabungan) + kolom group — LOLOS ✅ |
 | 2026-10-19 | C8 | Multi-transaksi 1 chat (items, max 6) + margin = kas tersisa — LOLOS ✅ |
+| 2026-10-21 | C9 | Saldo awal + posisi terkini (Balances/!saldo) + fix int singkatan — code ✅, menunggu verifikasi |
+| 2026-10-21 | C10 | Fix stabilitas Actions (self-chain + guard crash) + privasi DM (PRIVACY_MODE) — code ✅, menunggu verifikasi |

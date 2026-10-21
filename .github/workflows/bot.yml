@@ -1,24 +1,35 @@
 name: pencatat-keuangan-bot
 
-# Bot dijalankan sebagai job GitHub Actions (gratis utk repo public).
-# Jadwal tiap 6 jam: job hidup ~5jam55, lalu run berikutnya mengakhirinya →
-# gap koneksi < beberapa menit. Bisa juga dijalankan manual via workflow_dispatch.
+# Bot hidup di GitHub Actions (gratis untuk repo public).
+# Masalah sistem lama: cron GitHub bisa telat 2-5 jam → saat run selesai/timeout,
+# penggantinya tidak datang → bot offline berjam-jam.
+#
+# Solusi (self-chain): 1 run menjalankan bot ~5,5 jam, lalu run ini MENGANTRE
+# run berikutnya sendiri via workflow_dispatch (pakai GITHUB_TOKEN bawaan,
+# tanpa secret tambahan). Cron dijadikan jaring pengaman saja.
+# → Downtime pergantian run tinggal ~1-2 menit (npm ci + login).
+#
+# Push baru ke main tetap langsung deploy (trigger push → cancel run lama).
 
 on:
   workflow_dispatch:
   push:
-    branches: [main] # deploy otomatis tiap push
+    branches: [main]
   schedule:
-    - cron: '0 */6 * * *' # UTC 0/6/12/18 = 07/13/19/01 WIB
+    - cron: '0 */6 * * *' # cadangan: 00/06/12/18 UTC — dipakai hanya kalau rantai putus
 
 concurrency:
   group: discord-bot
   cancel-in-progress: true # pastikan hanya ada 1 instance bot (dua login token = flicker)
 
+permissions:
+  contents: read
+  actions: write # digunakan untuk menantai run berikutnya (self-chain)
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 355 # ~5 jam 55 menit
+    timeout-minutes: 355 # batas aman GitHub (6 jam/job); rantai terjadi jauh sebelum ini
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,7 +37,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Jalankan bot (auto-restart bila crash)
+      - name: Jalankan bot (~5,5 jam, auto-restart bila crash)
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
@@ -36,8 +47,38 @@ jobs:
           MONEY_CHANNEL_ID: ${{ secrets.MONEY_CHANNEL_ID }}
           SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
         run: |
-          while true; do
-            echo "[bot] meluncur $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
-            node src/index.js || echo "[bot] keluar, restart dalam 5 detik..."
-            sleep 5
+          MAX_SEC=19800 # umur bot per run: 5,5 jam, lalu genti run ((*) jauh < timeout job)
+          fails=0
+          SECONDS=0
+          while (( SECONDS < MAX_SEC )); do
+            echo "[bot] meluncur $(date -u '+%Y-%m-%d %H:%M:%S') UTC (umur run: ${SECONDS}s)"
+            start=$SECONDS
+            node src/index.js || true
+            dur=$(( SECONDS - start ))
+            if (( dur < 10 )); then fails=$(( fails + 1 )); else fails=0; fi
+            if (( fails >= 5 )); then
+              echo "[bot] crash 5x beruntun < 10 detik — jeda 5 menit sebelum coba lagi"
+              fails=0
+              sleep 300
+            else
+              sleep 5
+            fi
           done
+          echo "[bot] jatah 5,5 jam habis — menantai run berikutnya"
+      - name: Rantai run berikutnya (self-relaunch)
+        if: ${{ !cancelled() }} # jangan rantai bila dibatalkan oleh run yang lebih baru (penggantinya sudah jalan)
+        run: |
+          for i in 1 2 3; do
+            echo "percobaan rantai ke-$i"
+            if curl -sf -X POST \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/bot.yml/dispatches" \
+              -d '{"ref":"main"}'; then
+              echo "✅ run berikutnya berhasil diminta"
+              exit 0
+            fi
+            echo "gagal, coba lagi dalam 30 detik"
+            sleep 30
+          done
+          echo "::warning::Gagal merantai run berikutnya — menunggu cron cadangan tiap 6 jam."
