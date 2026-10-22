@@ -9,10 +9,10 @@
    KAMU                          BOT                              HASIL
 ┌─────────────┐          ┌───────────────────┐          ┌────────────────────────┐
 │ 1. TULIS DI │   ───▶   │ 2. AI MEMBACA &   │   ───▶   │ 4. PAPAN CATATAN       │
-│    DISCORD  │          │    MENafsirkan    │          │    (Google Sheets)     │
+│  DM BOT     │          │    MENAFSIRKAN    │          │    (Google Sheets)     │
 │ "bayar      │          │ 3. RAPIKAN: jenis,│          │                        │
 │ parkir 2    │          │    jumlah,        │          │ 5. BOT MEMBALAS        │
-│ ribu"       │          │    kategori       │          │    "+ saldo terkini"   │
+│ ribu"       │          │    kategori       │          │  "✅ + posisi terkini"  │
 └─────────────┘          └───────────────────┘          └────────────────────────┘
 ```
 
@@ -39,9 +39,9 @@ angkanya dari papan catatan** — bukan menebak.
                 ┌─────────────────────┐   ┌─────────────────────────┐
                 │  PERINTAH LOKAL     │   │  GATING (hemat kuota AI)│
                 │  src/commands.js    │   │  Hanya jika:            │
-                │                     │   │  • di channel keuangan, │
-                │  !help !rekap       │   │  • ATAU bot di-mention, │
-                │  !hapus !kategori   │   │  • ATAU lewat DM        │
+                │                     │   │  • di DM (selalu lolos) │
+                │  !help !rekap       │   │  • di server: channel   │
+                │  !hapus !kategori   │   │     keuangan / mention  │
                 │  (TANPA AI — gratis)│   └──────────┬──────────────┘
                 └─────────┬───────────┘              │  lolos
                           │                          ▼
@@ -83,8 +83,8 @@ Tahap demi tahap, dengan **nilai asli** di tiap langkah:
 
 | # | Tahap | Apa yang terjadi | Contoh nilai |
 |---|---|---|---|
-| 1 | **Input** | User menulis bebas di Discord | `bayar parkir 2 ribu` |
-| 2 | **Router** | Bukan perintah `!`, ada di channel keuangan → diteruskan | — |
+| 1 | **Input** | User menulis bebas di DM bot (privat) | `bayar parkir 2 ribu` |
+| 2 | **Router** | DM → selalu diteruskan; di server: channel keuangan/mention | — |
 | 3 | **Rate-limit** | Batas 8 chat AI / menit per user | OK |
 | 4 | **AI klasifikasi (Gemini)** | 1 panggilan REST, respons JSON | `{"intent":"TRANSACTION", "transaction_type":"EXPENSE", "group":"EXPENSE", "amount":2000, "category":"Transportasi", "description":"Parkir"}` |
 | 5 | **Validasi kode** | kategori HARUS ada di daftar kategori dinamis (tab `Categories`); grup mengikuti kategori; nominal ≥ 0 | gagal → fallback `Lainnya` |
@@ -198,7 +198,7 @@ Tab `Categories` (dikelola lewat `!kategori`):
 
 ---
 
-## 7b) Alur F — Saldo Awal & Posisi Terkini (C9 · *direncanakan*)
+## 7b) Alur F — Saldo Awal & Posisi Terkini (C9 ✅)
 
 > Masalah yang diselesaikan: ketika mulai memakai bot, kondisi awal **tidak nol** —
 > misal sudah punya **tabungan Rp2.500.000** dan **sisa kas Rp1.500.000**.
@@ -251,7 +251,35 @@ gajian 1jt                            →  kas 2.400.000 · tabungan 2.600.000
 bayar belanja 250rb                   →  kas 2.150.000 · tabungan 2.600.000
 ```
 
-*Status: desain sudah ditetapkan di `TASKS.md` (C9); implementasi menyusul setelah konfirmasi.*
+*Status: ✅ TERPASANG & LOLOS uji Discord — `!saldo`, posisi terkini di embed transaksi/`!rekap`, dan tanya-jawab AI memakai baseline. Format angka bebas: `500ribu`, `2.5juta`, `1,5jt`, `3.500.000`.*
+
+---
+
+## 7c) Alur G — Privasi: DM-ONLY & Balasan Terkunci 🔒 (C10)
+
+> Masalah yang diselesaikan: channel Discord = ruang publik — partner/anggota lain bisa membaca isi
+> chat keuanganmu. Discord tidak bisa menyembunyikan pesan asli user, tapi bisa mengarahkan
+> seluruh layanan ke **DM** (percakapan yang hanya bisa dibaca 2 pihak: kamu & bot).
+
+```
+  DI SERVER (channel publik)              DI DM BOT (ruang privat)
+ ──────────────────────────              ──────────────────────────────
+ "gajian 3,5 juta" ─┐
+ "!rekap" ──────────┼──▶ bot balas 🔒     "bayar parkir 2 ribu" → ✅ embed lengkap
+ "@bot ..." ────────┘    arahan singkat    "gajian 3,5juta"      → ✅ + posisi terkini
+                         "pakai DM saya"   "!saldo"/"!rekap"/... → ✅ embed lengkap
+                                │
+                                └──────▶ user pindah ke DM → layanan penuh
+```
+
+- `DM_ONLY=1` (aktif): di server bot **tidak melayani transaksi sama sekali** — chat keuangan di
+  channel/`!`/mention hanya mendapat arahan singkat (dikirim via DM, tidak muncul di channel).
+  Chat di DM: semua fitur normal.
+- `PRIVACY_MODE=dm` (default): semua balasan bot untuk pesan server dikirim via DM + reaksi 🔒.
+- `PRIVACY_DELETE=1` (opsional, mati): jika dipakai mode channel, chat user dihapus bot setelah
+  dibaca (butuh izin *Manage Messages*).
+- **Per-user tetap**: kunci data adalah `user_id` Discord — DM atau channel pun sama-sama terisolasi.
+- **Ajak user lain tanpa setup**: masuk server → buka profil bot → **Message** → `!help`.
 
 ---
 
@@ -264,7 +292,8 @@ bayar belanja 250rb                   →  kas 2.150.000 · tabungan 2.600.000
         ⓘ                Discord Gateway                 Gemini API + Sheets API
 ```
 
-- Job GitHub Actions hidup ± 6 jam, lalu **schedule otomatis menjalankan ulang** (07/13/19/01 WIB) + auto-restart 5 detik bila crash.
+- Job GitHub Actions hidup ±5,5 jam; saat giliran habis, run **menantai penggantinya sendiri** (self-chain via workflow_dispatch, downtime ±1–2 menit) — cron 6 jam hanya jaring pengaman. Auto-restart 5 detik bila crash.
+- Push baru ke `main` = deploy instan (run lama digantikan otomatis).
 - Laptop **boleh mati** — bot tetap jalan. Semua secret via GitHub Secrets, tidak ada di repositori.
 - Semua komponen gratis: Discord · Gemini API · Google Sheets · GitHub Actions.
 
@@ -272,7 +301,7 @@ bayar belanja 250rb                   →  kas 2.150.000 · tabungan 2.600.000
 
 ## 9) Lembar Uji — contoh nyata untuk demo live
 
-| Input di Discord | Yang dibalas bot |
+| Input di DM bot | Yang dibalas bot |
 |---|---|
 | `bayar parkir 2 ribu` | 🛒 Pengeluaran tercatat · Transportasi · Rp2.000 |
 | `makan siang 15k` | 🛒 · Makanan · Rp15.000 |
@@ -294,6 +323,7 @@ bayar belanja 250rb                   →  kas 2.150.000 · tabungan 2.600.000
 3. **Slide Live Demo** — pakai tabel di bagian 9, mulai jilid input ringan → multi-transaksi → rekap.
 4. **Slide "angka pasti, bahasa luwes"** (bagian 5) — menjelaskan mengapa halusinasi angka AI justru dihindari dengan design.
 5. **Slide infrastruktur nol-biaya** (bagian 8) — semua komponen gratis + 24/7 tanpa kartu kredit.
-6. **Slide multi-user & privasi** — data per-`user_id`, tak tercampur antar-pengguna; data rawak milik tabel Sheet milikmu sendiri.
+6. **Slide multi-user & privasi** — semua chat dilakukan di **DM bot** (tidak ada isi keuangan yang tampil di channel server; `DM_ONLY`), data per-`user_id` tak tercampur antar-pengguna, data tempat kamu sendiri punya Google Sheet milikmu.
+   • Alur G: di server bot hanya memberi arahan singkat → user dipandu ke DM → layanan penuh privat di DM.
 7. **Slide roadmap** — ide berikutnya: catat mundur (` tanggal`) & budget/%, laporan mingguan berulang, ekspor.
 ```

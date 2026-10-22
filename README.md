@@ -72,7 +72,7 @@ Konsol harus menampilkan `✅ Login berhasil sebagai ...` lalu tes: `!help`.
 
 ## 🖥️ Cara pakai
 
-> **Privasi dulu: pakai lewat DM bot.** Buka profil bot di server → **Message** → semua perintah & chat di kirim di DM. User lain tidak bisa melihat isinya; hanya kamu & bot. Di channel server bot hanya memberi arahan singkat (mode `DM_ONLY`).
+> **Privasi dulu: pakai lewat DM bot.** Buka profil bot di server → **Message** → semua perintah & chat dikirim di DM. User lain tidak bisa melihat isinya; hanya kamu & bot. Di channel server bot hanya memberi arahan singkat (mode `DM_ONLY`).
 >
 > **Mengajak teman/keluarga?** Tak perlu setup: ajang mereka masuk server → mereka DM bot → `!help`. Datamu tiap orang terpisah otomatis (per `user_id`).
 

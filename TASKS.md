@@ -162,8 +162,8 @@ Checklist:
 - [x] Q&A facts memuat SALDO AWAL + POSISI TERKINI (buildFacts(rows, base))
 - [x] README diperbarui (FLOW.md Alur F sudah dibuat saat desain)
 - [x] fix bug `!saldo awal` singkatan uang: `500ribu`/`2.5juta`/`1,5jt`/`2,5` kini benar (17/17 uji ✓)
-- [x] fix bug `!rekap` (variabel `rows` jamrud tak dideklarasikan → ReferenceError saat strict mode)
-Status: [x] code selesai — menunggu verifikasi di Discord
+- [x] fix bug `!rekap` (variabel `rows` tersisa tanpa deklarasi → ReferenceError saat strict mode)
+Status: ✅ LOLOS (2026-10-21) — verifikasi user: `!saldo` aktif & posisi terkini terlihat di embed (kas 5.755.000 • tabungan 3.000.000 sesuai baseline user)
 DoD (uji di Discord):
 - `!saldo awal kas 1500000 tabungan 2500000` → tersimpan; `!saldo` → kas 1.5jt & tabungan 2.5jt;
 - `menabung 100rb` → kas 1.4jt, tabungan 2.6jt; `gajian 1jt` → kas 2.4jt; `!rekap` cocok; `berapa saldo saya` → jawaban pakai posisi terkini; user lain tidak terpengaruh.
@@ -182,7 +182,11 @@ Checklist:
 - [x] Mode **`DM_ONLY=1`** (aktif di workflow): di server bot tidak melayani apapun — chat di channel keuangan/`!`/mention dapat arahan singkat via DM; seluruh layanan aktif di DM (privasi 100%, isi chat user tidak di-channel)
 - [x] README: panduan pakai via DM + cara mengajak user lain (FTUE: masuk server → DM bot)
 - [x] README (deploy + privasi), `!help` mendapat penjelasan DM
-Status: [x] code selesai — menunggu verifikasi di Discord
+Checklist:
+- [x] fix bug gating DM: chat di DM SELALU diproses — tidak lagi disaring `MONEY_CHANNEL_ID` (penyebab DM diabaikan kemarin)
+- [x] fallback channel jadi notice netral (`🔒 Gagal mengirim DM...`) — tanpa bocor data
+Status: ✅ LOLOS (2026-10-22) — verifikasi user: `gajian 3,5juta` di DM tercatat + posisi terkini benar; di server `!rekap` hanya arahan DM-only
+DoD: bot tetap online melewati pergantian run (gap < ~5 menit); chat di channel dibalas via DM; layanan penuh di DM
 DoD: bot tetap online melewati pergantian run (gap < ~5 menit); chat di channel dibalas di DM dengan 🔒.
 
 ---
@@ -204,5 +208,6 @@ Semua checkpoint C0–C6 lolos pada 2026-10-19.
 | 2026-10-19 | C6 | Deploy 24/7 via GitHub Actions (Render = minta kartu → dihapus); VS Code publish; Secrets 5 item ✅ **MVP SELESAI** |
 | 2026-10-19 | C7 | !kategori + 3 kelompok (pendapatan/pengeluaran/tabungan) + kolom group — LOLOS ✅ |
 | 2026-10-19 | C8 | Multi-transaksi 1 chat (items, max 6) + margin = kas tersisa — LOLOS ✅ |
-| 2026-10-21 | C9 | Saldo awal + posisi terkini (Balances/!saldo) + fix int singkatan — code ✅, menunggu verifikasi |
-| 2026-10-21 | C10 | Fix stabilitas Actions (self-chain + guard crash) + privasi DM (PRIVACY_MODE) — code ✅, menunggu verifikasi |
+| 2026-10-21 | C9 | Saldo awal + posisi terkini (Balances/!saldo) + fix int singkatan — LOLOS ✅ (embed pakai posisi live) |
+| 2026-10-21 | C10 | Fix stabilitas Actions (self-chain + guard crash) + privasi DM + fix DM gating & fallback — LOLOS ✅ (2026-10-22, uji DM user) |
+| 2026-10-22 | — | Mode `DM_ONLY=1` + perbaikan DM: chat DM selalu diproses; fallback channel = notice netral tanpa bocor — LOLOS ✅ |
